@@ -839,6 +839,99 @@
   $("#ed-restaurar").addEventListener("click", (e) => { e.preventDefault(); salvarEditor(true); });
   $("#ed-cancelar").addEventListener("click", (e) => { e.preventDefault(); $("#editor").close(); });
 
+  // ---------- atualizar o site agora (só administrador) ----------
+  // Dispara a Action "Atualizar acervo" pela API do GitHub e acompanha até o fim.
+  const espera = (ms) => new Promise((r) => setTimeout(r, ms));
+  async function ghApi(caminho, token, opcoes = {}) {
+    const r = await fetch(`https://api.github.com/repos/${REPO}/${caminho}`, {
+      ...opcoes, cache: "no-store",
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", ...(opcoes.body ? { "Content-Type": "application/json" } : {}) },
+    });
+    if (r.status === 401) throw Object.assign(new Error("O GitHub recusou o token."), { token: true });
+    return r;
+  }
+  const PASSOS = ["Pedir a atualização ao GitHub", "Ler a planilha e buscar capas novas", "Publicar o site"];
+  function passo(i, extra = "") {
+    const ol = $("#at-passos");
+    ol.hidden = false;
+    ol.innerHTML = PASSOS.map((p, j) => `<li class="${j < i ? "feito" : j === i ? "agora" : ""}">${j < i ? "✓ " : ""}${p}${j === i && extra ? ` <small>${esc(extra)}</small>` : ""}</li>`).join("");
+  }
+  const msgAt = (t, tipo = "") => { $("#at-msg").textContent = t; $("#at-msg").className = "ed-msg " + tipo; };
+  let atualizando = false;
+
+  function abrirAtualizar() {
+    if (!atualizando) {
+      $("#at-token-box").hidden = !!tokenGH();
+      $("#at-passos").hidden = true;
+      $("#at-ir").hidden = false;
+      $("#at-ir").disabled = false;
+      msgAt("");
+    }
+    $("#dlg-atualizar").showModal();
+  }
+
+  async function rodarAtualizacao() {
+    const token = tokenGH() || $("#at-token").value.trim();
+    if (!token) { $("#at-token-box").hidden = false; $("#at-token").focus(); return msgAt("Cole o token do GitHub para continuar.", "erro"); }
+    atualizando = true;
+    $("#at-ir").disabled = true;
+    $("#atualizar").classList.add("girando");
+    msgAt("");
+    try {
+      passo(0);
+      const shaDe = async () => { const r = await ghApi("commits/main", token); if (!r.ok) throw new Error(`GitHub respondeu ${r.status}`); return (await r.json()).sha; };
+      const antes = await shaDe();
+      const inicio = new Date(Date.now() - 10000).toISOString();
+      const d = await ghApi("actions/workflows/atualizar.yml/dispatches", token, { method: "POST", body: JSON.stringify({ ref: "main", return_run_details: true }) });
+      if (d.status === 403 || d.status === 404) throw Object.assign(new Error("O token não tem permissão para rodar a atualização. Edite o token no GitHub e dê a permissão Actions: Read and write."), { token: true });
+      if (!d.ok) throw new Error(`GitHub respondeu ${d.status}`);
+      try { localStorage.setItem(CHAVE_TOKEN, token); } catch { /* idem */ }
+      $("#at-token-box").hidden = true;
+      let runId = null;
+      try { runId = (await d.json()).workflow_run_id || null; } catch { /* resposta sem corpo: acha a execução pela lista */ }
+
+      const t0 = Date.now();
+      let run = null;
+      while (Date.now() - t0 < 12 * 60 * 1000) {
+        await espera(5000);
+        const seg = Math.round((Date.now() - t0) / 1000);
+        if (runId) run = await (await ghApi(`actions/runs/${runId}`, token)).json();
+        else {
+          const l = await (await ghApi(`actions/workflows/atualizar.yml/runs?event=workflow_dispatch&per_page=1&created=%3E%3D${encodeURIComponent(inicio)}`, token)).json();
+          run = (l.workflow_runs || [])[0] || null;
+          if (run) runId = run.id;
+        }
+        passo(1, run ? (run.status === "queued" ? `na fila… ${seg}s` : `${seg}s`) : `aguardando o GitHub… ${seg}s`);
+        if (run && run.status === "completed") break;
+      }
+      if (!run || run.status !== "completed") throw new Error("a atualização está demorando mais que o normal. Confira a aba Actions do repositório.");
+      if (run.conclusion !== "success") throw new Error(`a atualização falhou (${run.conclusion}). Veja os detalhes em ${run.html_url}`);
+
+      if ((await shaDe()) === antes) {
+        passo(3);
+        msgAt("Nada novo na planilha — o site já está em dia.");
+        return;
+      }
+      // houve commit: o GitHub Pages republica em cerca de um minuto
+      for (let s = 75; s > 0; s--) { passo(2, `recarregando em ${s}s`); await espera(1000); }
+      location.reload();
+    } catch (e) {
+      if (e.token) {
+        try { localStorage.removeItem(CHAVE_TOKEN); } catch { /* idem */ }
+        $("#at-token-box").hidden = false;
+        $("#at-token").value = "";
+      }
+      msgAt(e.message.charAt(0).toUpperCase() + e.message.slice(1), "erro");
+    } finally {
+      atualizando = false;
+      $("#at-ir").disabled = false;
+      $("#atualizar").classList.remove("girando");
+    }
+  }
+  $("#atualizar").addEventListener("click", abrirAtualizar);
+  $("#dlg-atualizar form").addEventListener("submit", (e) => { e.preventDefault(); if (!atualizando) rodarAtualizacao(); });
+  $("#at-fechar").addEventListener("click", () => $("#dlg-atualizar").close());
+
   // ---------- acesso restrito ----------
   // Só a impressão digital (SHA-256) de "usuário:senha" fica no código, nunca a senha.
   const ACESSO = "f783f921ecda562c78ed26db4353c58818d32d4c27dbac57c82895d08649957d";
