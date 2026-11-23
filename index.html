@@ -6,13 +6,26 @@
   <title>Acervo Ronca Ronca</title>
   <meta name="description" content="Todos os setlists do Ronca Ronca desde 2012: busque por artista, música, ano de lançamento ou programa.">
   <meta name="color-scheme" content="light dark">
+  <meta name="robots" content="noindex, nofollow">
   <link rel="icon" href="assets/logo.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&family=Source+Sans+3:ital,wght@0,600;0,700;0,800;1,300&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/style.css">
 </head>
-<body>
+<body class="bloqueado">
+  <section class="login" id="login" aria-label="Entrar">
+    <form class="login-caixa" id="login-form" autocomplete="on">
+      <img src="assets/logo.png" alt="Ronca Ronca" width="140" height="102">
+      <p class="login-sub"><b>Acervo</b>acesso restrito</p>
+      <label>Usuário<input id="login-usuario" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
+      <label>Senha<input id="login-senha" name="password" type="password" autocomplete="current-password" required></label>
+      <label class="lembrar"><input id="login-lembrar" type="checkbox" checked> Manter conectado neste aparelho</label>
+      <p class="login-erro" id="login-erro" role="alert"></p>
+      <button class="btn" type="submit">Entrar</button>
+    </form>
+  </section>
+
   <header class="topo">
     <div class="topo-in">
       <a class="marca" href="#/" aria-label="Início">
@@ -50,7 +63,7 @@
   <footer>
     <div class="in">
       <span>Acervo de setlists do <a href="https://www.roncaronca.com.br/" target="_blank" rel="noopener">Ronca Ronca</a>. Dados da planilha DataRonca, atualizados automaticamente. Capas: fotos dos discos publicadas no site oficial e, quando não há, Deezer.</span>
-      <span><span id="atualizado"></span> · <span class="versao">v1.5</span></span>
+      <span><span id="atualizado"></span> · <span class="versao">v1.6</span> · <a href="#" id="sair">sair</a></span>
     </div>
   </footer>
 

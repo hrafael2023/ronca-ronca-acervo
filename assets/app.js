@@ -588,6 +588,7 @@
 
   let rotaAnterior = null;
   function rotear() {
+    if (!D.pronto) return;
     desenhos = [];
     const h = location.hash.replace(/^#\/?/, "");
     const [caminho, qs] = h.split("?");
@@ -627,8 +628,48 @@
   }
 
   addEventListener("hashchange", rotear);
-  carregar().then(() => { dicas(); rotear(); }).catch((e) => {
-    console.error(e);
-    app.innerHTML = `<div class="vazio">Não deu para carregar o acervo. Recarregue a página.</div>`;
+  // ---------- acesso restrito ----------
+  // Só a impressão digital (SHA-256) de "usuário:senha" fica no código, nunca a senha.
+  const ACESSO = "f783f921ecda562c78ed26db4353c58818d32d4c27dbac57c82895d08649957d";
+  const CHAVE_ACESSO = "ronca-acesso";
+  const guardado = (onde) => { try { return onde.getItem(CHAVE_ACESSO); } catch { return null; } };
+  const guardar = (onde, v) => { try { onde.setItem(CHAVE_ACESSO, v); } catch { /* navegador sem armazenamento */ } };
+
+  async function impressao(texto) {
+    const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(texto));
+    return [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
+  }
+
+  function iniciar() {
+    document.body.classList.remove("bloqueado");
+    carregar().then(() => { D.pronto = true; dicas(); rotear(); }).catch((e) => {
+      console.error(e);
+      app.innerHTML = `<div class="vazio">Não deu para carregar o acervo. Recarregue a página.</div>`;
+    });
+  }
+
+  $("#sair").addEventListener("click", (e) => {
+    e.preventDefault();
+    try { localStorage.removeItem(CHAVE_ACESSO); sessionStorage.removeItem(CHAVE_ACESSO); } catch { /* idem */ }
+    location.replace(location.pathname);
   });
+
+  if (guardado(localStorage) === ACESSO || guardado(sessionStorage) === ACESSO) {
+    iniciar();
+  } else {
+    $("#login-usuario").focus();
+    $("#login-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const usuario = $("#login-usuario").value.trim().toLowerCase();
+      const senha = $("#login-senha").value;
+      if ((await impressao(`${usuario}:${senha}`)) !== ACESSO) {
+        $("#login-erro").textContent = "Usuário ou senha incorretos.";
+        $("#login-senha").value = "";
+        $("#login-senha").focus();
+        return;
+      }
+      guardar($("#login-lembrar").checked ? localStorage : sessionStorage, ACESSO);
+      iniciar();
+    });
+  }
 })();

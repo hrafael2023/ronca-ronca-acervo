@@ -252,6 +252,28 @@ mark { background: rgba(242, 196, 24, .45); color: inherit; border-radius: 2px; 
 details.tabela { margin-top: 8px; font-size: 13px; }
 details.tabela summary { cursor: pointer; color: var(--texto-3); }
 
+/* ---------- login ---------- */
+.login { display: none; }
+body.bloqueado { background: var(--navy); }
+body.bloqueado > :not(.login):not(script) { display: none !important; }
+body.bloqueado .login { display: grid; place-items: center; min-height: 100vh; padding: 24px 16px; }
+.login-caixa {
+  width: 100%; max-width: 340px; background: var(--cartao); border-radius: 10px; padding: 28px 24px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, .35); border-top: 4px solid var(--amarelo); display: grid; gap: 14px;
+}
+.login-caixa img { width: 96px; height: auto; margin: 0 auto; background: var(--navy); border-radius: 8px; padding: 10px 12px; box-sizing: content-box; }
+.login-sub { margin: 0; text-align: center; font: italic 300 18px var(--fonte-titulo); color: var(--texto-2); }
+.login-sub b { display: block; font: 700 13px var(--fonte); letter-spacing: .12em; text-transform: uppercase; color: var(--navy-ink); font-style: normal; }
+.login-caixa label { display: grid; gap: 4px; font-size: 13px; font-weight: 600; color: var(--texto-2); }
+.login-caixa input:not([type=checkbox]) {
+  font: 16px var(--fonte); padding: 10px 12px; border: 1px solid var(--borda); border-radius: 6px;
+  background: var(--fundo); color: var(--texto);
+}
+.login-caixa input:focus { outline: 2px solid var(--amarelo); outline-offset: 1px; }
+.login-caixa .lembrar { display: flex; align-items: center; gap: 8px; font-weight: 400; }
+.login-erro { margin: 0; min-height: 1.2em; color: var(--vermelho); font-size: 13px; font-weight: 600; }
+.login-caixa .btn { padding: 11px; font-size: 15px; }
+
 /* ---------- rodapé ---------- */
 footer { background: var(--navy); color: #bdc3e0; font-size: 13px; }
 footer .in { max-width: 1120px; margin: 0 auto; padding: 22px 20px; display: flex; gap: 16px; flex-wrap: wrap; justify-content: space-between; }
