@@ -34,6 +34,7 @@ RAIZ = Path(__file__).resolve().parent.parent
 ACERVO = RAIZ / "data" / "acervo.json"
 CAPAS = RAIZ / "data" / "capas.json"
 FALHAS = RAIZ / "data" / "capas-falhas.json"
+MANUAIS = RAIZ / "data" / "capas-manuais.json"
 DIAS_REPETIR = 30
 UA = "acervo-ronca/1.0"
 
@@ -67,6 +68,66 @@ def limpar_musica(s):
 
 def chave(artista, musica):
     return f"{artista.strip().lower()}|{musica.strip().lower()}"
+
+
+def chave_base(artista, musica):
+    """Chave tolerante: sem acento, caixa, pontuação, 'the' e o que vem entre parênteses.
+    'Victoria' e 'victoria (exclusivo do #500)' do Autoramas dão a mesma chave."""
+    return f"{norm(artista)}|{norm(limpar_musica(musica))}"
+
+
+def mesma_musica(chave_a, chave_b):
+    """Compara duas chaves 'artista|música' com folga, mas exigente: aceita erro de
+    digitação e observação entre parênteses ('here come'/'here comes the nice'),
+    não aceita músicas parecidas ('let it rain'/'make it rain')."""
+    a1, m1 = chave_a.split("|", 1)
+    a2, m2 = chave_b.split("|", 1)
+    if not artista_bate(a1, a2):
+        return False
+    x, y = norm(limpar_musica(m1)), norm(limpar_musica(m2))
+    return bool(x and y) and (x == y or difflib.SequenceMatcher(None, x, y).ratio() >= 0.85)
+
+
+class Vinculos:
+    """Liga nomes antigos (de capas manuais, cache do Deezer) às faixas atuais da planilha,
+    para que corrigir um nome na planilha não perca a capa já escolhida."""
+
+    def __init__(self, faixas):
+        self.atuais = {chave(f["a"], f["m"]) for f in faixas}
+        self.por_base, self.por_artista = {}, {}
+        for k in self.atuais:
+            a, m = k.split("|", 1)
+            self.por_base.setdefault(chave_base(a, m), []).append(k)
+            self.por_artista.setdefault(norm(a), []).append(k)
+
+    def equivalentes(self, k):
+        """Faixas atuais que são a 'mesma música' da chave k (pode ser mais de uma variação)."""
+        if k in self.atuais:
+            return [k]
+        a, m = k.split("|", 1)
+        achadas = self.por_base.get(chave_base(a, m))
+        if achadas:
+            return achadas
+        candidatas = self.por_artista.get(norm(a)) or [c for c in self.atuais if artista_bate(a, c.split("|", 1)[0])]
+        return [c for c in candidatas if mesma_musica(k, c)]
+
+
+def migrar_manuais(vinc):
+    """Capas trocadas à mão cujo nome sumiu da planilha passam para o nome novo (ou nomes)."""
+    manuais = carregar(MANUAIS, {})
+    mudou = False
+    for k in [k for k in manuais if k not in vinc.atuais]:
+        novos = [n for n in vinc.equivalentes(k) if n not in manuais]
+        if not novos:
+            continue
+        for n in novos:
+            manuais[n] = dict(manuais[k])
+            print(f"  capa manual: '{k}' -> '{n}'")
+        del manuais[k]
+        mudou = True
+    if mudou:
+        MANUAIS.write_text(json.dumps(dict(sorted(manuais.items())), ensure_ascii=False, indent=1) + "\n")
+    return mudou
 
 
 def ler_planilha(texto):
@@ -357,14 +418,21 @@ def main():
     acervo = montar_acervo(faixas)
 
     antigo = carregar(ACERVO, {})
-    if antigo.get("programas") != acervo["programas"]:
+    planilha_mudou = antigo.get("programas") != acervo["programas"]
+    if planilha_mudou:
         salvar_json(ACERVO, acervo)
         print(f"acervo.json: {len(faixas)} faixas, {len(acervo['programas'])} programas")
     else:
         print("acervo.json: sem mudanças")
 
+    vinc = Vinculos(faixas)
+    if migrar_manuais(vinc):
+        print("capas manuais: nomes atualizados conforme a planilha")
+
     try:
-        atualizar_fotos(faixas, args.fotos_completo)
+        # Planilha mudou (nomes corrigidos, faixas novas): refaz a ligação foto→faixa de
+        # TODOS os programas, comparando com folga o texto da bula com os nomes atuais.
+        atualizar_fotos(faixas, args.fotos_completo or planilha_mudou)
     except Exception as e:  # noqa: BLE001  (site fora do ar não pode travar o resto)
         print(f"fotos do site: erro, mantendo as anteriores ({e})")
     if args.so_fotos:
@@ -372,6 +440,22 @@ def main():
 
     capas = carregar(CAPAS, {})
     falhas = carregar(FALHAS, {})
+    # nome mudou na planilha: reaproveita a capa do Deezer já achada para o nome antigo
+    por_base, por_artista = {}, {}
+    for k in capas:
+        por_base.setdefault(chave_base(*k.split("|", 1)), k)
+        por_artista.setdefault(norm(k.split("|", 1)[0]), []).append(k)
+    herdadas = 0
+    for k in vinc.atuais - capas.keys():
+        antigo_k = por_base.get(chave_base(*k.split("|", 1)))
+        if not antigo_k:  # erro de digitação corrigido: compara com folga entre as do mesmo artista
+            antigo_k = next((c for c in por_artista.get(norm(k.split("|", 1)[0]), []) if mesma_musica(k, c)), None)
+        if antigo_k:
+            capas[k] = capas[antigo_k]
+            falhas.pop(k, None)
+            herdadas += 1
+    if herdadas:
+        print(f"capas: {herdadas} reaproveitadas de nomes antigos")
     hoje = datetime.now(timezone.utc).date()
     pendentes = []
     vistas = set()

@@ -15,6 +15,9 @@
   const fmt1 = (n) => Number(n).toLocaleString("pt-BR", { maximumFractionDigits: 1, minimumFractionDigits: 1 });
   const decada = (a) => (a ? Math.floor(a / 10) * 10 : null);
   const slug = (a) => encodeURIComponent(a.toLowerCase());
+  // chave tolerante: sem acento/caixa/pontuação/"the" e sem o que vem entre parênteses,
+  // para "Victoria" e "victoria (exclusivo do #500)" serem a mesma música
+  const chaveBase = (a, m) => norm(String(a).replace(/^\s*the\s+/i, "")) + "|" + (norm(String(m).replace(/\s*[\(\[][^\)\]]*[\)\]]/g, " ")) || norm(m));
   const capaURL = (md5, t = 250) => `https://cdn-images.dzcdn.net/images/cover/${md5}/${t}x${t}-000000-80-0-0.jpg`;
 
   // "mundo livre s/a" → "Mundo Livre S/A" (quando o Deezer não deu o nome certinho)
@@ -35,6 +38,7 @@
     artistas: new Map(), // chave → {chave, nome, total, musicas:Set, progs:Set, primeiro, ultimo}
     porNumero: new Map(),
     manuais: {}, // chave → {url, arquivo?, erro?}
+    manuaisBase: {}, // mesma coisa, pela chave tolerante
     admin: false,
   };
 
@@ -46,7 +50,12 @@
       fetch("data/fotos-site.json", { cache: "no-cache" }).then((r) => r.json()).catch(() => ({})),
       // capas trocadas à mão pelo administrador: têm prioridade sobre tudo
       fetch("data/capas-manuais.json", { cache: "no-cache" }).then((r) => r.json()).catch(() => ({})),
-    ]).then(([a, c, f, m]) => { D.manuais = m || {}; return [a, c, f]; });
+    ]).then(([a, c, f, m]) => {
+      D.manuais = m || {};
+      D.manuaisBase = {};
+      for (const [k, v] of Object.entries(D.manuais)) { const i = k.indexOf("|"); D.manuaisBase[chaveBase(k.slice(0, i), k.slice(i + 1))] = v; }
+      return [a, c, f];
+    });
     D.fotos = fotos;
     const nomeDeezer = new Map();
     for (const [k, c] of Object.entries(capas)) {
@@ -65,7 +74,7 @@
         let mu = D.musicas.get(k);
         if (!mu) {
           const c = capas[k];
-          mu = { k, a, m, al, progs: [], capa: c ? c[0] : null, album: c ? c[1] : null, deezer: c ? c[2] : null, chaveA, n: norm(a + " " + m), na: norm(a), nm: norm(m) };
+          mu = { k, base: chaveBase(a, m), a, m, al, progs: [], capa: c ? c[0] : null, album: c ? c[1] : null, deezer: c ? c[2] : null, chaveA, n: norm(a + " " + m), na: norm(a), nm: norm(m) };
           D.musicas.set(k, mu);
         }
         if (!mu.al && al) mu.al = al;
@@ -99,7 +108,8 @@
 
   // Qual imagem mostrar: capa manual > foto do site (do programa, ou a mais recente) > Deezer
   function fonteCapa(mu, t = 250, f = null) {
-    const man = mu && D.manuais[mu.k];
+    // capa escolhida à mão para esta faixa ou para outra variação do nome da mesma música
+    const man = mu && (D.manuais[mu.k] || D.manuaisBase[mu.base]);
     // foto de vitrola vinda do site do Ronca: enquadra pela direita, como as outras fotos do site
     if (man) return { src: man.arquivo || man.url, cls: "manual" + (/roncaronca\.com\.br/.test(man.de || man.url) ? " foto-site" : ""), titulo: "Capa escolhida à mão" };
     const foto = (f && f.foto) || (mu && mu.foto);
@@ -208,7 +218,7 @@
   function itemHTML(mu, termos, extra = "", f = null) {
     const progs = mu.progs.slice(0, 8).map((p) => `<a class="chip" href="#/programa/${p}">#${p}</a>`).join("");
     const resto = mu.progs.length > 8 ? `<span class="chip">+${mu.progs.length - 8}</span>` : "";
-    const info = [mu.al ? `lançada em <a href="#/busca?c=ano&q=${mu.al}">${mu.al}</a>` : "", mu.album && !mu.foto && !D.manuais[mu.k] ? esc(mu.album) : ""].filter(Boolean).join(" · ");
+    const info = [mu.al ? `lançada em <a href="#/busca?c=ano&q=${mu.al}">${mu.al}</a>` : "", mu.album && !mu.foto && !D.manuais[mu.k] && !D.manuaisBase[mu.base] ? esc(mu.album) : ""].filter(Boolean).join(" · ");
     return `<div class="item">${extra}${capaHTML(mu, 120, f)}
       <div><div class="t">${marcar(mu.m, termos)}</div>
       <div class="a"><a href="#/artista/${slug(mu.a.trim())}">${marcar(nomeArtista(mu.a), termos)}</a></div>
@@ -857,7 +867,7 @@
     $("#ed-msg").textContent = "";
     $("#ed-msg").className = "ed-msg";
     $("#ed-token-box").hidden = !!tokenGH();
-    $("#ed-restaurar").hidden = !D.manuais[k];
+    $("#ed-restaurar").hidden = !D.manuais[k]; // só desfaz a escolha feita para este nome exato
     $("#ed-salvar").hidden = true;
     $("#ed-manual").open = false;
     // Google Imagens: "álbum artista ano" (sem álbum conhecido, usa o nome da música)
@@ -888,7 +898,8 @@
       const msg = `${remover ? "Volta a capa original de" : "Troca a capa de"} ${nomeArtista(mu.a)} – ${mu.m}`;
       await gravarManual(mu.k, entrada, token, msg);
       try { localStorage.setItem(CHAVE_TOKEN, token); } catch { /* sem armazenamento: pede de novo da próxima vez */ }
-      if (remover) delete D.manuais[mu.k]; else D.manuais[mu.k] = { url };
+      if (remover) { delete D.manuais[mu.k]; delete D.manuaisBase[mu.base]; }
+      else { D.manuais[mu.k] = { url }; D.manuaisBase[mu.base] = { url }; }
       $("#editor").close();
       rotear();
       aviso(remover ? "Capa original de volta. O site publicado atualiza em 1 a 2 minutos." : "Capa trocada! O site baixa e guarda a imagem em 1 a 2 minutos.");
