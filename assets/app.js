@@ -191,8 +191,7 @@
   function itemHTML(mu, termos, extra = "", f = null) {
     const progs = mu.progs.slice(0, 8).map((p) => `<a class="chip" href="#/programa/${p}">#${p}</a>`).join("");
     const resto = mu.progs.length > 8 ? `<span class="chip">+${mu.progs.length - 8}</span>` : "";
-    const info = [mu.al ? `lançada em <a href="#/busca?c=ano&q=${mu.al}">${mu.al}</a>` : "", mu.album && !mu.foto ? esc(mu.album) : "",
-      mu.deezer ? `<a href="https://www.deezer.com/track/${mu.deezer}" target="_blank" rel="noopener">ouvir ↗</a>` : ""].filter(Boolean).join(" · ");
+    const info = [mu.al ? `lançada em <a href="#/busca?c=ano&q=${mu.al}">${mu.al}</a>` : "", mu.album && !mu.foto ? esc(mu.album) : ""].filter(Boolean).join(" · ");
     return `<div class="item">${extra}${capaHTML(mu, 120, f)}
       <div><div class="t">${marcar(mu.m, termos)}</div>
       <div class="a"><a href="#/artista/${slug(mu.a.trim())}">${marcar(nomeArtista(mu.a), termos)}</a></div>
