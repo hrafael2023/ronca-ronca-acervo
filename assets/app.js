@@ -454,7 +454,7 @@
       </div>
     </section>
     <section class="secao">
-      <div class="secao-topo"><h2>O Ronca em <b>números</b></h2><a class="mais" href="#/dashboard">dashboard completo →</a></div>
+      <div class="secao-topo"><h2>O Ronca em <b>números</b></h2><a class="mais" href="#/numeros">mais números →</a></div>
       ${kpisHTML(est)}
       <div class="graficos">
         <div class="cartao grafico"><h3>Artistas mais tocados</h3><div class="leg">execuções desde 2012 · clique para ver o artista</div><div id="g-top"></div></div>
@@ -543,7 +543,7 @@
     const pico = [...est.porAnoLanc.entries()].sort((a, b) => b[1] - a[1])[0];
     const decTop = [...est.porDecada.entries()].sort((a, b) => b[1] - a[1])[0];
     const umaVez = [...D.artistas.values()].filter((a) => a.total === 1).length;
-    app.innerHTML = `<div class="secao-topo"><h2>Dashboard do <b>acervo</b></h2></div>
+    app.innerHTML = `<div class="secao-topo"><h2>O acervo em <b>números</b></h2></div>
       ${kpisHTML(est)}
       <div class="kpis">
         <div class="kpi"><div class="v">${decTop[0] < 2000 ? "Anos " + String(decTop[0]).slice(2) : decTop[0] + "s"}</div><div class="r">década favorita</div><div class="s">${fmt1((decTop[1] / D.faixas.length) * 100)}% das faixas</div></div>
@@ -593,14 +593,14 @@
     const h = location.hash.replace(/^#\/?/, "");
     const [caminho, qs] = h.split("?");
     const partes = caminho.split("/");
-    document.querySelectorAll(".menu a").forEach((a) => a.classList.toggle("ativo", a.dataset.rota === partes[0]));
+    document.querySelectorAll(".menu a").forEach((a) => a.classList.toggle("ativo", a.dataset.rota === (partes[0] === "dashboard" ? "numeros" : partes[0])));
     if (partes[0] !== "busca") { $("#q").value = ""; }
     if (partes[0] === "busca") telaBusca(new URLSearchParams(qs || ""));
     else if (partes[0] === "programa") telaPrograma(+partes[1]);
     else if (partes[0] === "artista") telaArtista(decodeURIComponent(partes.slice(1).join("/")));
     else if (partes[0] === "programas") telaProgramas();
     else if (partes[0] === "artistas") telaArtistas();
-    else if (partes[0] === "dashboard") telaDashboard();
+    else if (partes[0] === "numeros" || partes[0] === "dashboard") telaDashboard();
     else telaInicio();
     if (partes[0] !== "busca" || rotaAnterior !== "busca") scrollTo(0, 0);
     rotaAnterior = partes[0];
@@ -648,11 +648,11 @@
     });
   }
 
-  $("#sair").addEventListener("click", (e) => {
+  document.querySelectorAll(".sair").forEach((el) => el.addEventListener("click", (e) => {
     e.preventDefault();
     try { localStorage.removeItem(CHAVE_ACESSO); sessionStorage.removeItem(CHAVE_ACESSO); } catch { /* idem */ }
     location.replace(location.pathname);
-  });
+  }));
 
   if (guardado(localStorage) === ACESSO || guardado(sessionStorage) === ACESSO) {
     iniciar();
