@@ -213,7 +213,7 @@
     // cartão de artista quando a busca bate com um nome
     let artistaTopo = "";
     if (c.tipo === "texto" && c.campo !== "musica") {
-      const cands = [...D.artistas.values()].filter((a) => a.na === c.q || (c.q.length > 3 && a.na.startsWith(c.q))).sort((a, b) => b.total - a.total).slice(0, 3);
+      const cands = [...D.artistas.values()].filter((a) => a.na === c.q || (c.q.length > 3 && (" " + a.na).includes(" " + c.q))).sort((a, b) => b.total - a.total).slice(0, 3);
       if (cands.length) artistaTopo = `<div class="filtros">${cands.map((a) => `<a class="chip" style="font-size:14px;padding:6px 14px" href="#/artista/${slug(a.chave)}">${esc(a.nome)} — ${fmt(a.total)} execuções →</a>`).join("")}</div>`;
     }
     let titulo;
