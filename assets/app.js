@@ -195,25 +195,7 @@
     return f ? lista.slice().sort(f) : lista;
   }
 
-  function marcar(txt, termos) {
-    let h = esc(txt);
-    if (!termos || !termos.length) return h;
-    // marca sem acento: compara caractere a caractere na versão normalizada
-    const base = txt.toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "");
-    if (base.length !== txt.length) return h;
-    const marcas = new Array(txt.length).fill(false);
-    for (const t of termos) {
-      let i = base.indexOf(t);
-      while (i >= 0) { for (let j = i; j < i + t.length; j++) marcas[j] = true; i = base.indexOf(t, i + t.length); }
-    }
-    let out = "", aberto = false;
-    for (let i = 0; i < txt.length; i++) {
-      if (marcas[i] && !aberto) { out += "<mark>"; aberto = true; }
-      if (!marcas[i] && aberto) { out += "</mark>"; aberto = false; }
-      out += esc(txt[i]);
-    }
-    return out + (aberto ? "</mark>" : "");
-  }
+
 
   function itemHTML(mu, termos, extra = "", f = null) {
     const progs = mu.progs.slice(0, 8).map((p) => `<a class="chip" href="#/programa/${p}">#${p}</a>`).join("");
@@ -221,8 +203,8 @@
     // sem o nome do álbum do Deezer: não dá para saber se tocou a edição original ou um relançamento
     const info = mu.al ? `lançada em <a href="#/busca?c=ano&q=${mu.al}">${mu.al}</a>` : "";
     return `<div class="item">${extra}${capaHTML(mu, 120, f)}
-      <div><div class="t">${marcar(mu.m, termos)}</div>
-      <div class="a"><a href="#/artista/${slug(mu.a.trim())}">${marcar(nomeArtista(mu.a), termos)}</a></div>
+      <div><div class="t">${esc(mu.m)}</div>
+      <div class="a"><a href="#/artista/${slug(mu.a.trim())}">${esc(nomeArtista(mu.a))}</a></div>
       <div class="info">${info}</div></div>
       <div class="progs">${progs}${resto}</div></div>`;
   }
