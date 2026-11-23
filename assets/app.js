@@ -192,7 +192,6 @@
     const progs = mu.progs.slice(0, 8).map((p) => `<a class="chip" href="#/programa/${p}">#${p}</a>`).join("");
     const resto = mu.progs.length > 8 ? `<span class="chip">+${mu.progs.length - 8}</span>` : "";
     const info = [mu.al ? `lançada em <a href="#/busca?c=ano&q=${mu.al}">${mu.al}</a>` : "", mu.album && !mu.foto ? esc(mu.album) : "",
-      mu.progs.length > 1 ? `tocada ${mu.progs.length}×` : "",
       mu.deezer ? `<a href="https://www.deezer.com/track/${mu.deezer}" target="_blank" rel="noopener">ouvir ↗</a>` : ""].filter(Boolean).join(" · ");
     return `<div class="item">${extra}${capaHTML(mu, 120, f)}
       <div><div class="t">${marcar(mu.m, termos)}</div>
@@ -452,7 +451,7 @@
           ${veterano ? `<p style="font-size:13px;color:#bdc3e0;margin:14px 0 0">Figurinha carimbada: <a style="color:var(--amarelo)" href="#/artista/${slug(veterano.chave)}">${esc(veterano.nome)}</a>, ${fmt(veterano.total)} execuções na história do programa.</p>` : ""}
           <div class="botoes"><a class="btn" href="#/programa/${ult.n}">Ver setlist</a><a class="btn sec" href="${esc(ult.bula || "https://www.roncaronca.com.br/")}" target="_blank" rel="noopener">Bula no site ↗</a></div>
         </aside>
-        <div class="grade-capas">${ult.faixas.map((f) => cartaoFaixa(f, estreias.has(f.chaveA))).join("")}</div>
+        <div class="grade-capas">${ult.faixas.map((f) => cartaoFaixa(f)).join("")}</div>
       </div>
     </section>
     <section class="secao">
@@ -469,13 +468,12 @@
     registrar(() => colunas($("#g-ano"), est.anosRonca.map((a) => ({ x: a, v: est.porAnoRonca.get(a), dica: `<b>${a}</b><br>${fmt(est.porAnoRonca.get(a))} faixas` })), { altura: 140, formatoX: (x) => "’" + String(x).slice(2), rotuloCada: largura($("#g-ano")) < 420 ? 2 : 1 }));
   }
 
-  function cartaoFaixa(f, estreia) {
+  function cartaoFaixa(f) {
     const mu = D.musicas.get(f.k);
-    const vezes = mu.progs.length;
     const capa = capaHTML(mu, 250, f);
     return `<div class="faixa-capa">${mu.deezer ? `<a href="https://www.deezer.com/track/${mu.deezer}" target="_blank" rel="noopener" title="Ouvir no Deezer">${capa}</a>` : capa}
       <div class="t">${esc(f.m)}</div><div class="a">${linkArtista(f.a)}</div>
-      <div class="y">${[f.al, vezes > 1 ? `tocada ${vezes}×` : "", estreia ? `<span style="color:var(--destaque);font-weight:700">estreia</span>` : ""].filter(Boolean).join(" · ")}</div></div>`;
+      <div class="y">${f.al || ""}</div></div>`;
   }
 
   function telaPrograma(n) {
@@ -487,7 +485,7 @@
     const estreias = new Set(prog.faixas.filter((f) => D.artistas.get(f.chaveA)?.primeiro === n).map((f) => f.chaveA));
     app.innerHTML = `<div class="cabeca"><div class="num">#${n}</div><div class="meta"><b>Ronca Ronca · ${prog.ano}</b><br>${prog.faixas.length} faixas · ${estreias.size} artistas estreando no programa</div>
       <div class="nav">${prog.bula ? `<a href="${esc(prog.bula)}" target="_blank" rel="noopener">bula no site ↗</a>` : ""}${ant ? `<a href="#/programa/${ant}">← #${ant}</a>` : ""}${prox ? `<a href="#/programa/${prox}">#${prox} →</a>` : ""}</div></div>
-      <div class="grade-capas" style="margin-bottom:28px">${prog.faixas.map((f) => cartaoFaixa(f, estreias.has(f.chaveA))).join("")}</div>
+      <div class="grade-capas" style="margin-bottom:28px">${prog.faixas.map((f) => cartaoFaixa(f)).join("")}</div>
       <h2 style="margin-bottom:12px">Setlist</h2>
       <div class="lista setlist">${prog.faixas.map((f) => itemHTML(D.musicas.get(f.k), null, `<span class="n">${f.pos}</span>`, f)).join("")}</div>`;
   }
