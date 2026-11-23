@@ -34,6 +34,8 @@
     musicas: new Map(), // k → {k, a, m, al, progs:[n], capa}
     artistas: new Map(), // chave → {chave, nome, total, musicas:Set, progs:Set, primeiro, ultimo}
     porNumero: new Map(),
+    manuais: {}, // chave → {url, arquivo?, erro?}
+    admin: false,
   };
 
   async function carregar() {
@@ -42,7 +44,9 @@
       fetch("data/capas.json", { cache: "no-cache" }).then((r) => r.json()).catch(() => ({})),
       // fotos dos discos publicadas nas bulas do site oficial: têm prioridade sobre o Deezer
       fetch("data/fotos-site.json", { cache: "no-cache" }).then((r) => r.json()).catch(() => ({})),
-    ]);
+      // capas trocadas à mão pelo administrador: têm prioridade sobre tudo
+      fetch("data/capas-manuais.json", { cache: "no-cache" }).then((r) => r.json()).catch(() => ({})),
+    ]).then(([a, c, f, m]) => { D.manuais = m || {}; return [a, c, f]; });
     D.fotos = fotos;
     const nomeDeezer = new Map();
     for (const [k, c] of Object.entries(capas)) {
@@ -91,13 +95,25 @@
   const linkArtista = (a) => `<a href="#/artista/${slug(a.trim())}">${esc(nomeArtista(a))}</a>`;
 
   // f (opcional) = a faixa num programa específico, que pode ter a foto daquele programa
-  function capaHTML(mu, t = 250, f = null) {
+  const ICONE_EDITAR = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`;
+
+  // Qual imagem mostrar: capa manual > foto do site (do programa, ou a mais recente) > Deezer
+  function fonteCapa(mu, t = 250, f = null) {
+    const man = mu && D.manuais[mu.k];
+    if (man) return { src: man.arquivo || man.url, cls: "manual", titulo: "Capa escolhida à mão" };
     const foto = (f && f.foto) || (mu && mu.foto);
-    if (foto) return `<div class="capa foto-site" title="Foto do disco publicada no site do Ronca Ronca"><img loading="lazy" src="${esc(t > 150 ? foto.g : foto.p)}" alt="" onerror="this.parentNode.classList.add('sem');this.remove()"></div>`;
-    const md5 = mu && mu.capa;
-    if (md5) return `<div class="capa"><img loading="lazy" src="${capaURL(md5, t)}" alt="${esc(mu.album || "")}" onerror="this.parentNode.classList.add('sem');this.remove()"></div>`;
+    if (foto) return { src: t > 150 ? foto.g : foto.p, cls: "foto-site", titulo: "Foto do disco publicada no site do Ronca Ronca" };
+    if (mu && mu.capa) return { src: capaURL(mu.capa, t), cls: "", titulo: "" };
+    return null;
+  }
+
+  // f (opcional) = a faixa num programa específico, que pode ter a foto daquele programa
+  function capaHTML(mu, t = 250, f = null) {
+    const fonte = fonteCapa(mu, t, f);
     const ini = (mu ? nomeArtista(mu.a) : "?").replace(/^the /i, "").slice(0, 2);
-    return `<div class="capa sem" data-ini="${esc(ini)}"></div>`;
+    const editar = D.admin && mu ? `<button class="capa-editar" type="button" data-k="${esc(mu.k)}" title="Trocar capa" aria-label="Trocar capa de ${esc(mu.m)}">${ICONE_EDITAR}</button>` : "";
+    if (!fonte) return `<div class="capa sem" data-ini="${esc(ini)}">${editar}</div>`;
+    return `<div class="capa ${fonte.cls}" data-ini="${esc(ini)}"${fonte.titulo ? ` title="${fonte.titulo}"` : ""}><img loading="lazy" src="${esc(fonte.src)}" alt="" onerror="this.parentNode.classList.add('sem');this.remove()">${editar}</div>`;
   }
 
   // ---------- busca ----------
@@ -628,9 +644,205 @@
   }
 
   addEventListener("hashchange", rotear);
+  // ---------- troca de capa (só administrador) ----------
+  // O navegador grava a URL em data/capas-manuais.json pela API do GitHub, com um
+  // token do próprio administrador (guardado só neste aparelho). A Action
+  // "Capas manuais" então baixa a imagem para capas/manual/ e aponta o arquivo.
+  const REPO = "hrafael2023/ronca-ronca-acervo";
+  const ARQ_MANUAIS = "data/capas-manuais.json";
+  const CHAVE_TOKEN = "ronca-gh-token";
+  const tokenGH = () => { try { return localStorage.getItem(CHAVE_TOKEN) || ""; } catch { return ""; } };
+  const b64 = (txt) => { const by = new TextEncoder().encode(txt); let s = ""; by.forEach((b) => (s += String.fromCharCode(b))); return btoa(s); };
+  const deB64 = (b) => new TextDecoder().decode(Uint8Array.from(atob(b.replace(/\s/g, "")), (c) => c.charCodeAt(0)));
+
+  async function gravarManual(k, entrada, token, mensagem) {
+    const url = `https://api.github.com/repos/${REPO}/contents/${ARQ_MANUAIS}`;
+    const cab = { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" };
+    for (let tentativa = 0; tentativa < 4; tentativa++) {
+      const r = await fetch(`${url}?ref=main&t=${Date.now()}`, { headers: cab, cache: "no-store" });
+      if (r.status === 401 || r.status === 403) throw Object.assign(new Error("token"), { token: true });
+      let sha, dados = {};
+      if (r.ok) { const j = await r.json(); sha = j.sha; dados = JSON.parse(deB64(j.content) || "{}"); }
+      else if (r.status !== 404) throw new Error(`GitHub respondeu ${r.status}`);
+      if (entrada) dados[k] = entrada; else delete dados[k];
+      const ordenado = Object.fromEntries(Object.entries(dados).sort(([a], [b]) => a.localeCompare(b)));
+      const p = await fetch(url, {
+        method: "PUT", headers: cab,
+        body: JSON.stringify({ message: mensagem, branch: "main", content: b64(JSON.stringify(ordenado, null, 1) + "\n"), ...(sha ? { sha } : {}) }),
+      });
+      if (p.ok) return ordenado;
+      if (p.status === 401 || p.status === 403) throw Object.assign(new Error("token"), { token: true });
+      if (p.status !== 409 && p.status !== 422) throw new Error(`GitHub respondeu ${p.status}`);
+      // 409/422: alguém (a Action) gravou no meio do caminho; lê de novo e tenta outra vez
+    }
+    throw new Error("o arquivo mudou várias vezes seguidas; tente de novo");
+  }
+
+  // ---- candidatas: catálogos abertos que o navegador consegue consultar ----
+  function jsonp(url, ms = 9000) {
+    return new Promise((ok, falha) => {
+      const cb = "cb" + Math.random().toString(36).slice(2);
+      const s = document.createElement("script");
+      const fim = () => { delete window[cb]; s.remove(); clearTimeout(t); };
+      const t = setTimeout(() => { fim(); falha(new Error("tempo esgotado")); }, ms);
+      window[cb] = (d) => { fim(); ok(d); };
+      s.onerror = () => { fim(); falha(new Error("falhou")); };
+      s.src = url + (url.includes("?") ? "&" : "?") + "callback=" + cb;
+      document.head.appendChild(s);
+    });
+  }
+
+  async function candidatasApple(artista, musica) {
+    const d = await jsonp(`https://itunes.apple.com/search?entity=song&limit=20&country=BR&term=${encodeURIComponent(artista + " " + musica)}`);
+    return (d.results || []).map((r) => ({
+      mini: r.artworkUrl100.replace("100x100bb", "250x250bb"), grande: r.artworkUrl100.replace("100x100bb", "1000x1000bb"),
+      titulo: r.collectionName, ano: (r.releaseDate || "").slice(0, 4), fonte: "Apple Music", artista: r.artistName,
+    }));
+  }
+  async function candidatasDeezer(artista, musica) {
+    const d = await jsonp(`https://api.deezer.com/search?output=jsonp&limit=20&q=${encodeURIComponent(artista + " " + musica)}`);
+    return (d.data || []).map((r) => ({
+      mini: r.album.cover_medium, grande: r.album.cover_xl || r.album.cover_big,
+      titulo: r.album.title, ano: "", fonte: "Deezer", artista: r.artist.name,
+    }));
+  }
+  async function candidatasMusicBrainz(artista, musica) {
+    const limpa = (t) => t.replace(/[\(\[].*?[\)\]]/g, " ").replace(/["\\]/g, " ").trim();
+    const q = `recording:"${limpa(musica)}" AND artist:"${limpa(artista)}"`;
+    const r = await fetch(`https://musicbrainz.org/ws/2/recording/?fmt=json&limit=25&query=${encodeURIComponent(q)}`);
+    const d = await r.json();
+    const vistos = new Set(), out = [];
+    for (const rec of d.recordings || []) for (const rel of rec.releases || []) {
+      if (vistos.has(rel.id) || out.length >= 16) continue;
+      vistos.add(rel.id);
+      out.push({ mini: `https://coverartarchive.org/release/${rel.id}/front-250`, grande: `https://coverartarchive.org/release/${rel.id}/front-1200`,
+        titulo: rel.title, ano: (rel.date || "").slice(0, 4), fonte: "MusicBrainz", artista: (rec["artist-credit"] || []).map((c) => c.name).join(" & "), pais: rel.country || "" });
+    }
+    return out;
+  }
+
+  let buscaCandidatas = 0;
+  async function mostrarCandidatas(mu) {
+    const id = ++buscaCandidatas;
+    const caixa = $("#ed-opcoes");
+    caixa.innerHTML = `<p class="ed-carregando">Procurando capas…</p>`;
+    const artista = nomeArtista(mu.a), musica = mu.m.replace(/\s*[\(\[].*$/, "");
+    const fontes = await Promise.allSettled([candidatasApple(artista, musica), candidatasMusicBrainz(artista, musica), candidatasDeezer(artista, musica)]);
+    if (id !== buscaCandidatas) return; // usuário já abriu outra capa
+    const vistas = new Set(), lista = [];
+    for (const f of fontes) if (f.status === "fulfilled") for (const c of f.value) {
+      const chave = c.grande;
+      if (!c.mini || vistas.has(chave)) continue;
+      // só capas do artista certo (parcerias contam)
+      if (c.artista && !norm(c.artista).split(" ").some((p) => p.length > 2 && norm(artista).includes(p))) continue;
+      vistas.add(chave);
+      lista.push(c);
+    }
+    if (!lista.length) {
+      caixa.innerHTML = `<p class="ed-carregando">Nenhuma capa encontrada nos catálogos. Use o Google Imagens e cole o endereço abaixo.</p>`;
+      $("#ed-manual").open = true;
+      return;
+    }
+    caixa.innerHTML = lista.slice(0, 36).map((c, i) => `<button type="button" class="ed-opcao" data-i="${i}" title="${esc(c.titulo)}${c.ano ? " (" + c.ano + ")" : ""} · ${c.fonte}">
+      <img src="${esc(c.mini)}" alt="" loading="lazy" onerror="this.closest('.ed-opcao').remove()">
+      <span>${esc(c.titulo || "")}${c.ano ? ` <i>${c.ano}</i>` : ""}</span><small>${c.fonte}${c.pais ? " · " + esc(c.pais) : ""}</small></button>`).join("");
+    caixa.onclick = (e) => {
+      const b = e.target.closest(".ed-opcao");
+      if (!b) return;
+      $("#ed-url").value = lista[+b.dataset.i].grande;
+      salvarEditor(false);
+    };
+  }
+
+  let editando = null;
+  function abrirEditor(k) {
+    const mu = D.musicas.get(k);
+    if (!mu) return;
+    editando = mu;
+    const dlg = $("#editor");
+    $("#ed-faixa").innerHTML = `<b>${esc(mu.m)}</b> — ${esc(nomeArtista(mu.a))}`;
+    $("#ed-atual").innerHTML = capaHTML({ ...mu }, 250).replace(/<button[\s\S]*?<\/button>/, "");
+    $("#ed-nova").innerHTML = `<div class="capa sem" data-ini="?"></div>`;
+    $("#ed-url").value = "";
+    $("#ed-msg").textContent = "";
+    $("#ed-msg").className = "ed-msg";
+    $("#ed-token-box").hidden = !!tokenGH();
+    $("#ed-restaurar").hidden = !D.manuais[k];
+    $("#ed-salvar").hidden = true;
+    $("#ed-manual").open = false;
+    $("#ed-google").href = `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(`${nomeArtista(mu.a)} ${mu.album && !mu.foto ? mu.album : mu.m} capa disco`)}`;
+    dlg.showModal();
+    mostrarCandidatas(mu);
+  }
+
+  function mensagemEd(txt, tipo = "") { $("#ed-msg").textContent = txt; $("#ed-msg").className = "ed-msg " + tipo; }
+
+  async function salvarEditor(remover) {
+    const mu = editando;
+    const url = $("#ed-url").value.trim();
+    if (!remover && !/^https?:\/\/\S+$/i.test(url)) return mensagemEd("Cole o endereço completo da imagem (começando com https://).", "erro");
+    const token = tokenGH() || $("#ed-token").value.trim();
+    if (!token) {
+      $("#ed-token-box").hidden = false;
+      $("#ed-salvar").hidden = false;
+      $("#ed-token").focus();
+      return mensagemEd("Falta o token do GitHub (só na primeira vez). Cole e clique em Salvar.", "erro");
+    }
+    const botoes = document.querySelectorAll("#editor button");
+    botoes.forEach((b) => (b.disabled = true));
+    mensagemEd("Salvando…");
+    try {
+      const entrada = remover ? null : { url, em: new Date().toISOString() };
+      const msg = `${remover ? "Volta a capa original de" : "Troca a capa de"} ${nomeArtista(mu.a)} – ${mu.m}`;
+      await gravarManual(mu.k, entrada, token, msg);
+      try { localStorage.setItem(CHAVE_TOKEN, token); } catch { /* sem armazenamento: pede de novo da próxima vez */ }
+      if (remover) delete D.manuais[mu.k]; else D.manuais[mu.k] = { url };
+      $("#editor").close();
+      rotear();
+      aviso(remover ? "Capa original de volta. O site publicado atualiza em 1 a 2 minutos." : "Capa trocada! O site baixa e guarda a imagem em 1 a 2 minutos.");
+    } catch (e) {
+      if (e.token) {
+        $("#ed-salvar").hidden = false;
+        try { localStorage.removeItem(CHAVE_TOKEN); } catch { /* idem */ }
+        $("#ed-token-box").hidden = false;
+        $("#ed-token").value = "";
+        mensagemEd("O GitHub recusou o token. Confira se ele tem permissão de escrita (Contents) neste repositório.", "erro");
+      } else mensagemEd("Não deu para salvar: " + e.message, "erro");
+    } finally {
+      botoes.forEach((b) => (b.disabled = false));
+    }
+  }
+
+  function aviso(txt) {
+    const a = $("#aviso");
+    a.textContent = txt;
+    a.classList.add("visivel");
+    clearTimeout(aviso.t);
+    aviso.t = setTimeout(() => a.classList.remove("visivel"), 6000);
+  }
+
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest && e.target.closest(".capa-editar");
+    if (!b) return;
+    e.preventDefault();
+    e.stopPropagation();
+    abrirEditor(b.dataset.k);
+  }, true);
+  $("#ed-url").addEventListener("input", () => {
+    const u = $("#ed-url").value.trim();
+    $("#ed-salvar").hidden = !u;
+    $("#ed-nova").innerHTML = /^https?:\/\//i.test(u)
+      ? `<div class="capa" data-ini="?"><img src="${esc(u)}" alt="" onerror="this.parentNode.classList.add('sem');this.remove()"></div>`
+      : `<div class="capa sem" data-ini="?"></div>`;
+  });
+  $("#editor form").addEventListener("submit", (e) => { e.preventDefault(); salvarEditor(false); }); // Salvar ou Enter
+  $("#ed-restaurar").addEventListener("click", (e) => { e.preventDefault(); salvarEditor(true); });
+  $("#ed-cancelar").addEventListener("click", (e) => { e.preventDefault(); $("#editor").close(); });
+
   // ---------- acesso restrito ----------
   // Só a impressão digital (SHA-256) de "usuário:senha" fica no código, nunca a senha.
   const ACESSO = "f783f921ecda562c78ed26db4353c58818d32d4c27dbac57c82895d08649957d";
+  const ADMIN = "41ec4ae270e40595a8848dea34c3c5b6638d84c7d7c03803c340db013d8fffae"; // pode trocar capas
   const CHAVE_ACESSO = "ronca-acesso";
   const guardado = (onde) => { try { return onde.getItem(CHAVE_ACESSO); } catch { return null; } };
   const guardar = (onde, v) => { try { onde.setItem(CHAVE_ACESSO, v); } catch { /* navegador sem armazenamento */ } };
@@ -640,7 +852,9 @@
     return [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
   }
 
-  function iniciar() {
+  function iniciar(acesso) {
+    D.admin = acesso === ADMIN;
+    document.body.classList.toggle("admin", D.admin);
     document.body.classList.remove("bloqueado");
     carregar().then(() => { D.pronto = true; dicas(); rotear(); }).catch((e) => {
       console.error(e);
@@ -654,22 +868,24 @@
     location.replace(location.pathname);
   }));
 
-  if (guardado(localStorage) === ACESSO || guardado(sessionStorage) === ACESSO) {
-    iniciar();
+  const salvo = [guardado(localStorage), guardado(sessionStorage)].find((v) => v === ACESSO || v === ADMIN);
+  if (salvo) {
+    iniciar(salvo);
   } else {
     $("#login-usuario").focus();
     $("#login-form").addEventListener("submit", async (e) => {
       e.preventDefault();
       const usuario = $("#login-usuario").value.trim().toLowerCase();
       const senha = $("#login-senha").value;
-      if ((await impressao(`${usuario}:${senha}`)) !== ACESSO) {
+      const acesso = await impressao(`${usuario}:${senha}`);
+      if (acesso !== ACESSO && acesso !== ADMIN) {
         $("#login-erro").textContent = "Usuário ou senha incorretos.";
         $("#login-senha").value = "";
         $("#login-senha").focus();
         return;
       }
-      guardar($("#login-lembrar").checked ? localStorage : sessionStorage, ACESSO);
-      iniciar();
+      guardar($("#login-lembrar").checked ? localStorage : sessionStorage, acesso);
+      iniciar(acesso);
     });
   }
 })();

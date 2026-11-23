@@ -66,11 +66,45 @@
   <footer>
     <div class="in">
       <span>Acervo de setlists do <a href="https://www.roncaronca.com.br/" target="_blank" rel="noopener">Ronca Ronca</a>. Dados da planilha DataRonca, atualizados automaticamente. Capas: fotos dos discos publicadas no site oficial e, quando não há, Deezer.</span>
-      <span><span id="atualizado"></span> · <span class="versao">v1.7</span> · <a href="#" class="sair">sair</a></span>
+      <span><span id="atualizado"></span> · <span class="versao">v1.8</span> · <a href="#" class="sair">sair</a></span>
     </div>
   </footer>
 
   <div class="dica-flutuante" id="dica" role="tooltip"></div>
+  <div class="aviso" id="aviso" role="status" aria-live="polite"></div>
+
+  <dialog class="editor" id="editor" aria-labelledby="ed-titulo">
+    <form method="dialog">
+      <h3 id="ed-titulo">Trocar capa</h3>
+      <p class="ed-faixa" id="ed-faixa"></p>
+      <div class="ed-topo">
+        <figure class="ed-atual"><div id="ed-atual"></div><figcaption>atual</figcaption></figure>
+        <p class="ed-instrucao">Clique na capa certa para trocar.<br><a id="ed-google" target="_blank" rel="noopener">Procurar no Google Imagens ↗</a></p>
+      </div>
+      <div class="ed-opcoes" id="ed-opcoes" aria-live="polite"></div>
+      <details class="ed-manual" id="ed-manual">
+        <summary>Ou cole o endereço de uma imagem</summary>
+        <div class="ed-manual-in">
+          <div class="ed-nova" id="ed-nova"></div>
+          <label>Endereço (URL) da imagem
+            <input id="ed-url" type="url" inputmode="url" placeholder="https://…/capa.jpg" autocomplete="off">
+          </label>
+        </div>
+      </details>
+      <div id="ed-token-box" class="ed-token" hidden>
+        <label>Token do GitHub <small>(só na primeira vez neste aparelho)</small>
+          <input id="ed-token" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…">
+        </label>
+        <p>Crie em <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">GitHub → Fine-grained token</a>: escolha só o repositório <b>ronca-ronca-acervo</b> e dê permissão <b>Contents: Read and write</b>.</p>
+      </div>
+      <p class="ed-msg" id="ed-msg" role="alert"></p>
+      <div class="ed-botoes">
+        <button type="button" class="ed-link" id="ed-restaurar">Voltar à capa original</button>
+        <button type="button" class="ed-sec" id="ed-cancelar">Cancelar</button>
+        <button type="submit" class="btn" id="ed-salvar" hidden>Salvar endereço</button>
+      </div>
+    </form>
+  </dialog>
   <script src="assets/app.js"></script>
 </body>
 </html>

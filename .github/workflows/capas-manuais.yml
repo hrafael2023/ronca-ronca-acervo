@@ -1,0 +1,37 @@
+name: Capas manuais
+
+# Roda quando o site grava data/capas-manuais.json (botão de trocar capa):
+# baixa as imagens novas para capas/manual/ e faz commit.
+on:
+  push:
+    branches: [main]
+    paths: [data/capas-manuais.json]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: escreve-no-repo
+  cancel-in-progress: false
+
+jobs:
+  baixar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Baixar capas novas
+        run: python3 scripts/capas_manuais.py
+      - name: Commit se mudou
+        run: |
+          if git diff --quiet && [ -z "$(git ls-files --others --exclude-standard capas)" ]; then
+            echo "Nada novo."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898333+github-actions[bot]@users.noreply.github.com"
+          git add data/capas-manuais.json capas
+          git commit -m "Guarda as capas trocadas à mão"
+          git pull --rebase origin main
+          git push
