@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&family=Source+Sans+3:ital,wght@0,600;0,700;0,800;1,300&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/style.css?v=1.9">
+  <link rel="stylesheet" href="assets/style.css?v=2.0">
 </head>
 <body class="bloqueado">
   <section class="login" id="login" aria-label="Entrar">
@@ -23,6 +23,7 @@
       <label class="lembrar"><input id="login-lembrar" type="checkbox" checked> Manter conectado neste aparelho</label>
       <p class="login-erro" id="login-erro" role="alert"></p>
       <button class="btn" type="submit">Entrar</button>
+      <p class="login-versao"><span class="versao">v2.0</span></p>
     </form>
   </section>
 
@@ -69,7 +70,7 @@
   <footer>
     <div class="in">
       <span>Acervo de setlists do <a href="https://www.roncaronca.com.br/" target="_blank" rel="noopener">Ronca Ronca</a>. Dados da planilha DataRonca, atualizados automaticamente. Capas: fotos dos discos publicadas no site oficial e, quando não há, Deezer.</span>
-      <span><span id="atualizado"></span> · <span class="versao">v1.9</span> · <a href="#" class="sair">sair</a></span>
+      <span><span id="atualizado"></span> · <span class="versao">v2.0</span> · <a href="#" class="sair">sair</a></span>
     </div>
   </footer>
 
@@ -101,7 +102,13 @@
       <p class="ed-faixa" id="ed-faixa"></p>
       <div class="ed-topo">
         <figure class="ed-atual"><div id="ed-atual"></div><figcaption>atual</figcaption></figure>
-        <p class="ed-instrucao">Clique na capa certa para trocar.<br><a id="ed-google" target="_blank" rel="noopener">Procurar no Google Imagens ↗</a></p>
+        <div class="ed-instrucao">
+          <p>Clique na capa certa para trocar.</p>
+          <div class="ed-fontes">
+            <button type="button" class="ed-fonte" id="ed-ronca" title="Procurar a capa nas bulas do site do Ronca Ronca"><img src="assets/logo.png" alt="" width="22" height="16"> Site do Ronca</button>
+            <a class="ed-fonte" id="ed-google" target="_blank" rel="noopener" title="Abre o Google Imagens em outra aba">Google Imagens ↗</a>
+          </div>
+        </div>
       </div>
       <div class="ed-opcoes" id="ed-opcoes" aria-live="polite"></div>
       <details class="ed-manual" id="ed-manual">
@@ -127,6 +134,6 @@
       </div>
     </form>
   </dialog>
-  <script src="assets/app.js?v=1.9"></script>
+  <script src="assets/app.js?v=2.0"></script>
 </body>
 </html>

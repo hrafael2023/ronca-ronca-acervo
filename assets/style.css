@@ -294,8 +294,18 @@ body.admin .capa.manual::before { display: block; }
 .ed-topo { display: grid; grid-template-columns: 84px 1fr; gap: 14px; align-items: center; }
 .ed-topo figure { margin: 0; }
 .ed-topo figcaption { text-align: center; font-size: 11px; color: var(--texto-3); margin-top: 2px; }
-.ed-instrucao { margin: 0; font-size: 14px; color: var(--texto-2); line-height: 1.6; }
-.ed-instrucao a { font-weight: 600; }
+.ed-instrucao { font-size: 14px; color: var(--texto-2); }
+.ed-instrucao p { margin: 0 0 8px; }
+.ed-fontes { display: flex; flex-wrap: wrap; gap: 8px; }
+.ed-fonte {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px;
+  border: 1px solid var(--borda); background: var(--fundo); color: var(--navy-ink); font-weight: 600; font-size: 13px;
+}
+.ed-fonte img { width: 22px; height: auto; background: var(--navy); border-radius: 3px; padding: 2px; box-sizing: content-box; }
+.ed-fonte:hover { border-color: var(--amarelo); color: var(--destaque); }
+.ed-fonte:disabled { opacity: .6; cursor: wait; }
+.ed-opcao.provavel img { outline: 3px solid var(--amarelo); outline-offset: -3px; }
+.ed-opcao b.selo { font-size: 11px; color: var(--destaque); }
 .ed-opcoes {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px;
   max-height: min(52vh, 460px); overflow-y: auto; padding: 2px; margin: 0 -2px;
@@ -356,6 +366,7 @@ body.bloqueado .login { display: grid; place-items: center; min-height: 100vh; p
 .login-caixa .lembrar { display: flex; align-items: center; gap: 8px; font-weight: 400; }
 .login-erro { margin: 0; min-height: 1.2em; color: var(--vermelho); font-size: 13px; font-weight: 600; }
 .login-caixa .btn { padding: 11px; font-size: 15px; }
+.login-versao { margin: -4px 0 0; text-align: center; font-size: 11px; color: var(--texto-3); }
 
 /* ---------- rodapé ---------- */
 footer { background: var(--navy); color: #bdc3e0; font-size: 13px; }

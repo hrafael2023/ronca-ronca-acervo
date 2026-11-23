@@ -100,7 +100,8 @@
   // Qual imagem mostrar: capa manual > foto do site (do programa, ou a mais recente) > Deezer
   function fonteCapa(mu, t = 250, f = null) {
     const man = mu && D.manuais[mu.k];
-    if (man) return { src: man.arquivo || man.url, cls: "manual", titulo: "Capa escolhida à mão" };
+    // foto de vitrola vinda do site do Ronca: enquadra pela direita, como as outras fotos do site
+    if (man) return { src: man.arquivo || man.url, cls: "manual" + (/roncaronca\.com\.br/.test(man.de || man.url) ? " foto-site" : ""), titulo: "Capa escolhida à mão" };
     const foto = (f && f.foto) || (mu && mu.foto);
     if (foto) return { src: t > 150 ? foto.g : foto.p, cls: "foto-site", titulo: "Foto do disco publicada no site do Ronca Ronca" };
     if (mu && mu.capa) return { src: capaURL(mu.capa, t), cls: "", titulo: "" };
@@ -111,7 +112,7 @@
   function capaHTML(mu, t = 250, f = null) {
     const fonte = fonteCapa(mu, t, f);
     const ini = (mu ? nomeArtista(mu.a) : "?").replace(/^the /i, "").slice(0, 2);
-    const editar = D.admin && mu ? `<button class="capa-editar" type="button" data-k="${esc(mu.k)}" title="Trocar capa" aria-label="Trocar capa de ${esc(mu.m)}">${ICONE_EDITAR}</button>` : "";
+    const editar = D.admin && mu ? `<button class="capa-editar" type="button" data-k="${esc(mu.k)}"${f ? ` data-p="${f.p}"` : ""} title="Trocar capa" aria-label="Trocar capa de ${esc(mu.m)}">${ICONE_EDITAR}</button>` : "";
     if (!fonte) return `<div class="capa sem" data-ini="${esc(ini)}">${editar}</div>`;
     return `<div class="capa ${fonte.cls}" data-ini="${esc(ini)}"${fonte.titulo ? ` title="${fonte.titulo}"` : ""}><img loading="lazy" src="${esc(fonte.src)}" alt="" onerror="this.parentNode.classList.add('sem');this.remove()">${editar}</div>`;
   }
@@ -725,6 +726,7 @@
   async function mostrarCandidatas(mu) {
     const id = ++buscaCandidatas;
     const caixa = $("#ed-opcoes");
+    candidatas = [];
     caixa.innerHTML = `<p class="ed-carregando">Procurando capas…</p>`;
     const artista = nomeArtista(mu.a), musica = mu.m.replace(/\s*[\(\[].*$/, "");
     const fontes = await Promise.allSettled([candidatasApple(artista, musica), candidatasMusicBrainz(artista, musica), candidatasDeezer(artista, musica)]);
@@ -738,29 +740,117 @@
       vistas.add(chave);
       lista.push(c);
     }
-    if (!lista.length) {
-      caixa.innerHTML = `<p class="ed-carregando">Nenhuma capa encontrada nos catálogos. Use o Google Imagens e cole o endereço abaixo.</p>`;
-      $("#ed-manual").open = true;
+    // capas do ano de lançamento da planilha primeiro; as sem ano vão para o fim
+    if (mu.al) {
+      const dist = (c) => (/^\d{4}$/.test(c.ano) ? Math.abs(+c.ano - mu.al) : 999);
+      lista.sort((a, b) => dist(a) - dist(b));
+    }
+    candidatas = [...candidatas.filter((c) => c.fonte.startsWith("Site do Ronca")), ...lista.slice(0, 36)];
+    desenharCandidatas();
+  }
+
+  let candidatas = [];
+  function desenharCandidatas() {
+    const caixa = $("#ed-opcoes");
+    if (!candidatas.length) {
+      caixa.innerHTML = `<p class="ed-carregando">Nenhuma capa encontrada. Tente o site do Ronca ou o Google Imagens (e cole o endereço abaixo).</p>`;
       return;
     }
-    caixa.innerHTML = lista.slice(0, 36).map((c, i) => `<button type="button" class="ed-opcao" data-i="${i}" title="${esc(c.titulo)}${c.ano ? " (" + c.ano + ")" : ""} · ${c.fonte}">
+    caixa.innerHTML = candidatas.map((c, i) => `<button type="button" class="ed-opcao${c.provavel ? " provavel" : ""}" data-i="${i}" title="${esc(c.titulo || "")}${c.ano ? " (" + c.ano + ")" : ""} · ${esc(c.fonte)}">
       <img src="${esc(c.mini)}" alt="" loading="lazy" onerror="this.closest('.ed-opcao').remove()">
-      <span>${esc(c.titulo || "")}${c.ano ? ` <i>${c.ano}</i>` : ""}</span><small>${c.fonte}${c.pais ? " · " + esc(c.pais) : ""}</small></button>`).join("");
+      ${c.provavel ? `<b class="selo">★ provável</b>` : ""}<span>${esc(c.titulo || "")}${c.ano ? ` <i>${c.ano}</i>` : ""}</span><small>${esc(c.fonte)}${c.pais ? " · " + esc(c.pais) : ""}</small></button>`).join("");
     caixa.onclick = (e) => {
       const b = e.target.closest(".ed-opcao");
       if (!b) return;
-      $("#ed-url").value = lista[+b.dataset.i].grande;
+      $("#ed-url").value = candidatas[+b.dataset.i].grande;
       salvarEditor(false);
     };
   }
 
-  let editando = null;
-  function abrirEditor(k) {
+  // ---- imagens das bulas do site do Ronca (a API do WordPress deles libera o acesso) ----
+  const SITE_RONCA = "https://www.roncaronca.com.br";
+  const IMG_NAO_CAPA = /free_?radio|weapon_?tico|musica\.conecta|apoiase|^\d+(?:-\d+)?\.(?:jpe?g|png)$/i;
+  async function bulaDoPrograma(n) {
+    const r = await fetch(`${SITE_RONCA}/wp-json/wp/v2/posts?per_page=10&_fields=title,content,link&search=${encodeURIComponent("bula #" + n)}`);
+    const posts = await r.json();
+    const div = document.createElement("div");
+    return (posts || []).find((p) => {
+      div.innerHTML = p.title.rendered;
+      const t = div.textContent.toLowerCase();
+      return t.includes("bula") && new RegExp("#\\s*" + n + "(?!\\d)").test(t);
+    }) || null;
+  }
+
+  function imagensDaBula(post, mu, n) {
+    const doc = new DOMParser().parseFromString(post.content.rendered, "text/html");
+    const alvoA = norm(mu.a), alvoM = norm(mu.m.replace(/\s*[\(\[].*$/, ""));
+    const out = [];
+    let bloco = [];
+    const absoluto = (u) => new URL(u, SITE_RONCA).href.replace(/^http:/, "https:");
+    doc.body.querySelectorAll("p, img").forEach((el) => {
+      if (el.tagName === "P") {
+        // um <p> pode ter várias linhas separadas por <br>
+        el.innerHTML.split(/<br\s*\/?>/i).forEach((html) => {
+          const t = new DOMParser().parseFromString(html, "text/html").body.textContent.trim();
+          const m = t.match(/^(.+?)\s*[–—-]\s*[“"″«]\s*(.+?)\s*[”"″»]/);
+          if (m) bloco.push({ a: norm(m[1]), m: norm(m[2]) });
+        });
+        return;
+      }
+      const src = el.getAttribute("src");
+      if (!src) return;
+      const nome = src.split("/").pop();
+      const w = +el.getAttribute("width") || 999;
+      const ehDaFaixa = bloco.some((b) => b.a === alvoA && (b.m.startsWith(alvoM) || alvoM.startsWith(b.m)));
+      bloco = [];
+      if (IMG_NAO_CAPA.test(nome) || w < 200) return;
+      let mini = absoluto(src);
+      const ss = el.getAttribute("srcset");
+      if (ss) {
+        const op = ss.split(",").map((x) => x.trim().split(/\s+/)).filter((x) => /w$/.test(x[1] || "")).map((x) => [parseInt(x[1]), x[0]]).filter((x) => x[0] >= 300).sort((a, b) => a[0] - b[0]);
+        if (op.length) mini = absoluto(op[0][1]);
+      }
+      out.push({ mini, grande: absoluto(src), titulo: ehDaFaixa ? "logo depois da faixa" : nome, ano: "", fonte: `Site do Ronca · #${n}`, provavel: ehDaFaixa });
+    });
+    return out;
+  }
+
+  async function buscarNoRonca() {
+    const mu = editando;
+    const progs = [...new Set([editandoProg, ...mu.progs].filter(Boolean))].slice(0, 6);
+    const btn = $("#ed-ronca");
+    btn.disabled = true;
+    mensagemEd(`Procurando nas bulas ${progs.map((p) => "#" + p).join(", ")}…`);
+    try {
+      const achadas = [];
+      for (const n of progs) {
+        const p = await bulaDoPrograma(n).catch(() => null);
+        if (p) achadas.push(...imagensDaBula(p, mu, n));
+        if (achadas.some((c) => c.provavel)) break; // achou a foto da faixa: não precisa abrir mais bulas
+      }
+      if (editando !== mu) return;
+      const vistas = new Set();
+      const unicas = achadas.sort((a, b) => b.provavel - a.provavel).filter((c) => !vistas.has(c.grande) && vistas.add(c.grande));
+      if (!unicas.length) { mensagemEd(`Nenhuma imagem de disco nas bulas ${progs.map((p) => "#" + p).join(", ")}.`, "erro"); return; }
+      candidatas = [...unicas, ...candidatas.filter((c) => !c.fonte.startsWith("Site do Ronca"))];
+      desenharCandidatas();
+      $("#ed-opcoes").scrollTop = 0;
+      mensagemEd(unicas.some((c) => c.provavel) ? "Imagens do site do Ronca no topo; a marcada com ★ vem logo depois da faixa na bula." : "Imagens do site do Ronca no topo (nenhuma colada à faixa; confira).");
+    } catch (e) {
+      mensagemEd("Não deu para consultar o site do Ronca: " + e.message, "erro");
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  let editando = null, editandoProg = null;
+  function abrirEditor(k, prog = null) {
     const mu = D.musicas.get(k);
     if (!mu) return;
     editando = mu;
+    editandoProg = prog;
     const dlg = $("#editor");
-    $("#ed-faixa").innerHTML = `<b>${esc(mu.m)}</b> — ${esc(nomeArtista(mu.a))}`;
+    $("#ed-faixa").innerHTML = `<b>${esc(mu.m)}</b> — ${esc(nomeArtista(mu.a))}${mu.al ? ` · ${mu.al}` : ""}`;
     $("#ed-atual").innerHTML = capaHTML({ ...mu }, 250).replace(/<button[\s\S]*?<\/button>/, "");
     $("#ed-nova").innerHTML = `<div class="capa sem" data-ini="?"></div>`;
     $("#ed-url").value = "";
@@ -770,7 +860,9 @@
     $("#ed-restaurar").hidden = !D.manuais[k];
     $("#ed-salvar").hidden = true;
     $("#ed-manual").open = false;
-    $("#ed-google").href = `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(`${nomeArtista(mu.a)} ${mu.album && !mu.foto ? mu.album : mu.m} capa disco`)}`;
+    // Google Imagens: "álbum artista ano" (sem álbum conhecido, usa o nome da música)
+    const album = (mu.album || mu.m).replace(/\s*[\(\[][^\)\]]*[\)\]]/g, "").trim() || mu.m;
+    $("#ed-google").href = `https://www.google.com/search?tbm=isch&q=${encodeURIComponent([album, nomeArtista(mu.a), mu.al].filter(Boolean).join(" "))}`;
     dlg.showModal();
     mostrarCandidatas(mu);
   }
@@ -826,7 +918,7 @@
     if (!b) return;
     e.preventDefault();
     e.stopPropagation();
-    abrirEditor(b.dataset.k);
+    abrirEditor(b.dataset.k, b.dataset.p ? +b.dataset.p : null);
   }, true);
   $("#ed-url").addEventListener("input", () => {
     const u = $("#ed-url").value.trim();
@@ -838,6 +930,7 @@
   $("#editor form").addEventListener("submit", (e) => { e.preventDefault(); salvarEditor(false); }); // Salvar ou Enter
   $("#ed-restaurar").addEventListener("click", (e) => { e.preventDefault(); salvarEditor(true); });
   $("#ed-cancelar").addEventListener("click", (e) => { e.preventDefault(); $("#editor").close(); });
+  $("#ed-ronca").addEventListener("click", (e) => { e.preventDefault(); buscarNoRonca(); });
 
   // ---------- atualizar o site agora (só administrador) ----------
   // Dispara a Action "Atualizar acervo" pela API do GitHub e acompanha até o fim.
