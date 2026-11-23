@@ -218,7 +218,8 @@
   function itemHTML(mu, termos, extra = "", f = null) {
     const progs = mu.progs.slice(0, 8).map((p) => `<a class="chip" href="#/programa/${p}">#${p}</a>`).join("");
     const resto = mu.progs.length > 8 ? `<span class="chip">+${mu.progs.length - 8}</span>` : "";
-    const info = [mu.al ? `lançada em <a href="#/busca?c=ano&q=${mu.al}">${mu.al}</a>` : "", mu.album && !mu.foto && !D.manuais[mu.k] && !D.manuaisBase[mu.base] ? esc(mu.album) : ""].filter(Boolean).join(" · ");
+    // sem o nome do álbum do Deezer: não dá para saber se tocou a edição original ou um relançamento
+    const info = mu.al ? `lançada em <a href="#/busca?c=ano&q=${mu.al}">${mu.al}</a>` : "";
     return `<div class="item">${extra}${capaHTML(mu, 120, f)}
       <div><div class="t">${marcar(mu.m, termos)}</div>
       <div class="a"><a href="#/artista/${slug(mu.a.trim())}">${marcar(nomeArtista(mu.a), termos)}</a></div>
@@ -525,9 +526,11 @@
     const porAno = new Map();
     for (const p of ar.progs) { const a = D.porNumero.get(p).ano; porAno.set(a, (porAno.get(a) || 0) + D.porNumero.get(p).faixas.filter((f) => f.chaveA === chave).length); }
     const capa = musicas.find((m) => m.capa);
+    const letra = letraDoArtista(ar.nome);
     app.innerHTML = `<div class="cabeca">${capa ? `<div style="width:120px">${capaHTML(capa)}</div>` : ""}<div><h2><b>${esc(ar.nome)}</b></h2>
       <div class="meta" style="margin-top:6px">${fmt(ar.total)} execuções · ${fmt(ar.musicas.size)} músicas · ${fmt(ar.progs.size)} programas · ${rank}º mais tocado<br>
-      Estreou no <a href="#/programa/${ar.primeiro}">#${ar.primeiro}</a> · última vez no <a href="#/programa/${ar.ultimo}">#${ar.ultimo}</a></div></div></div>
+      Estreou no <a href="#/programa/${ar.primeiro}">#${ar.primeiro}</a> · última vez no <a href="#/programa/${ar.ultimo}">#${ar.ultimo}</a></div></div>
+      <div class="nav"><a href="#/artistas?l=${encodeURIComponent(letra)}" title="Voltar à lista de artistas com ${letra}">← Artistas · ${letra}</a></div></div>
       <div class="graficos" style="margin-bottom:24px"><div class="cartao grafico largo"><h3>Execuções por ano do programa</h3><div class="leg">quantas faixas de ${esc(ar.nome)} tocaram em cada ano</div><div id="g-art"></div></div></div>
       <h2 style="margin-bottom:12px">Músicas tocadas</h2>
       <div class="lista">${musicas.map((m) => itemHTML(m)).join("")}</div>`;
@@ -545,10 +548,13 @@
       }).join("")}</div></div>`).join("");
   }
 
+  // letra do índice de artistas: ignora "the" e acentos; números e símbolos vão para "#"
+  const letraDoArtista = (nome) => { const c = norm(nome.replace(/^the /i, "")).charAt(0).toUpperCase(); return /[A-Z]/.test(c) ? c : "#"; };
   let letraAtual = "A";
-  function telaArtistas() {
+  function telaArtistas(letra) {
+    if (letra && /^[A-Z#]$/.test(letra)) letraAtual = letra;
     const todos = [...D.artistas.values()].sort((a, b) => norm(a.nome.replace(/^the /i, "")).localeCompare(norm(b.nome.replace(/^the /i, ""))));
-    const letraDe = (a) => { const c = norm(a.nome.replace(/^the /i, "")).charAt(0).toUpperCase(); return /[A-Z]/.test(c) ? c : "#"; };
+    const letraDe = (a) => letraDoArtista(a.nome);
     const letras = [..."#ABCDEFGHIJKLMNOPQRSTUVWXYZ"];
     const desenhar = () => {
       $("#letras").innerHTML = letras.map((l) => `<button class="${l === letraAtual ? "ativo" : ""}" data-l="${l}">${l}</button>`).join("");
@@ -557,7 +563,7 @@
     };
     app.innerHTML = `<div class="secao-topo"><h2>Todos os <b>artistas</b></h2><span class="muted">${fmt(todos.length)} artistas · o número é o total de execuções</span></div>
       <div class="letras" id="letras"></div><div class="cartao"><div class="artistas-lista" id="art-lista"></div></div>`;
-    $("#letras").onclick = (e) => { const b = e.target.closest("button"); if (b) { letraAtual = b.dataset.l; desenhar(); } };
+    $("#letras").onclick = (e) => { const b = e.target.closest("button"); if (b) { letraAtual = b.dataset.l; history.replaceState(null, "", "#/artistas?l=" + encodeURIComponent(letraAtual)); desenhar(); } };
     desenhar();
   }
 
@@ -626,7 +632,7 @@
     else if (partes[0] === "programa") telaPrograma(+partes[1]);
     else if (partes[0] === "artista") telaArtista(decodeURIComponent(partes.slice(1).join("/")));
     else if (partes[0] === "programas") telaProgramas();
-    else if (partes[0] === "artistas") telaArtistas();
+    else if (partes[0] === "artistas") telaArtistas(new URLSearchParams(qs || "").get("l"));
     else if (partes[0] === "numeros" || partes[0] === "dashboard") telaDashboard();
     else telaInicio();
     if (partes[0] !== "busca" || rotaAnterior !== "busca") scrollTo(0, 0);
