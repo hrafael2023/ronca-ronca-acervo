@@ -9,8 +9,9 @@ Todos os setlists do [Ronca Ronca](https://www.roncaronca.com.br/) desde 2012, c
 - **Fonte dos dados:** a planilha DataRonca (aba `FULL LIST`), que precisa continuar com acesso "Qualquer pessoa com o link: Leitor".
 - **Atualização automática:** a Action [`Atualizar acervo`](.github/workflows/atualizar.yml) roda a cada 3 horas (ou na hora, pelo botão *Run workflow* na aba Actions). Ela roda `scripts/atualizar.py`, que:
   1. baixa a planilha em CSV e gera `data/acervo.json`;
-  2. procura no Deezer a capa de cada música nova e guarda em `data/capas.json` (as não encontradas ficam em `data/capas-falhas.json` e são tentadas de novo depois de 30 dias);
-  3. faz commit se algo mudou — o GitHub Pages republica sozinho.
+  2. lê os posts "a bula do #N" do site oficial e guarda as fotos dos discos em `data/fotos-site.json` — **elas têm prioridade** sobre o Deezer, porque mostram a edição exata que tocou (fotos na vitrola a partir do #300 e capas escaneadas nos anos anteriores);
+  3. procura no Deezer a capa de cada música nova e guarda em `data/capas.json` (as não encontradas ficam em `data/capas-falhas.json` e são tentadas de novo depois de 30 dias);
+  4. faz commit se algo mudou — o GitHub Pages republica sozinho.
 - **Site:** HTML/CSS/JS puro (`index.html`, `assets/`), sem build. Toda a busca e os gráficos rodam no navegador.
 
 ## Busca

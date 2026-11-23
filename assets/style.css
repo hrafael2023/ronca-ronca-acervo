@@ -122,6 +122,8 @@ h3 { font-size: 16px; font-weight: 700; color: var(--texto); }
   background: linear-gradient(135deg, var(--navy) 0%, #2e4a86 100%);
 }
 .capa img { width: 100%; height: 100%; object-fit: cover; }
+/* fotos do site: o disco na vitrola fica à esquerda e a capa à direita */
+.capa.foto-site img { object-position: 88% 50%; }
 .capa.sem::after {
   content: attr(data-ini); position: absolute; inset: 0; display: grid; place-items: center;
   font: 700 28px var(--fonte-titulo); color: var(--amarelo); opacity: .9; text-transform: uppercase;

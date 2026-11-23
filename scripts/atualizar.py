@@ -3,7 +3,9 @@
 
 1. Baixa a aba FULL LIST da planilha (CSV público).
 2. Gera data/acervo.json com todas as faixas, agrupadas por programa.
-3. Procura capas no Deezer para faixas novas e guarda em data/capas.json
+3. Lê os posts "a bula do #N" do site oficial e guarda as fotos dos discos
+   em data/fotos-site.json (elas têm prioridade sobre o Deezer no site).
+4. Procura capas no Deezer para faixas novas e guarda em data/capas.json
    (cache: cada faixa é procurada uma vez; as não encontradas voltam a ser
    tentadas depois de DIAS_REPETIR dias).
 
@@ -12,6 +14,7 @@ Uso:  python3 scripts/atualizar.py [--limite N] [--csv arquivo.csv]
 import argparse
 import csv
 import difflib
+import html as html_lib
 import io
 import json
 import re
@@ -183,10 +186,168 @@ def salvar_json(p, obj, compacto=True):
     p.write_text(txt + "\n")
 
 
+# ---------- fotos dos discos publicadas no site oficial ----------
+# Cada post "a bula do #N" traz o setlist e, desde o #126, fotos dos discos do
+# acervo do Mauro na vitrola (arquivos N.1.jpg, N.2.jpg…). Cada foto vem logo
+# DEPOIS das faixas que ilustra: ela vale para o último artista do bloco de
+# faixas entre a foto anterior e ela.
+
+API_POSTS = "https://www.roncaronca.com.br/wp-json/wp/v2/posts"
+SITE = "https://www.roncaronca.com.br"
+FOTOS = RAIZ / "data" / "fotos-site.json"
+FOTO_DISCO = re.compile(r"^\d+\.\d+(?:-\d+)?\.(?:jpe?g|png|webp)$", re.I)  # 728.1.jpg, 427.2-1.jpg
+# imagens com estes nomes são banners, apresentadores e convidados — nunca capas
+NAO_CAPA = {"free", "radio", "weapon", "tico", "conecta", "musica", "sgr", "bula", "ronca", "nandao",
+            "mauro", "emauro", "muzak", "tulio", "jb", "apoiase", "agenda", "vivo", "pgm", "capa"}
+LINHA_FAIXA = re.compile(r"^(.+?)\s*[–—-]\s*[“\"″«]\s*(.+?)\s*[”\"″»]")
+
+
+def posts_bula(paginas):
+    """Lista os posts 'a bula do #N' (mais novos primeiro) com o conteúdo."""
+    for pagina in range(1, paginas + 1):
+        url = f"{API_POSTS}?search=bula&per_page=100&page={pagina}&_fields=id,title,content,link"
+        try:
+            lote = json.loads(baixar(url))
+        except Exception:  # noqa: BLE001  (página além da última dá 400)
+            return
+        if not lote:
+            return
+        for p in lote:
+            titulo = html_lib.unescape(p["title"]["rendered"])
+            m = re.search(r"#\s*(\d+)", titulo)
+            if "bula" in titulo.lower() and m:
+                yield int(m.group(1)), p
+
+
+def https(url):
+    return re.sub(r"^http://", "https://", url)
+
+
+def palavras_imagem(img):
+    """Palavras do nome do arquivo e do alt: 'pogues.red_.roses_-1.jpg' → {pogues, red, roses}."""
+    nome = img["src"].rsplit("/", 1)[-1].rsplit(".", 1)[0]
+    nome = re.sub(r"-\d+x\d+$|-\d+$", "", nome)
+    return set(norm(nome.replace("_", " ").replace(".", " ").replace("-", " ")).split()) | set(norm(img["alt"]).split())
+
+
+def artista_na_imagem(artista, palavras):
+    toks = [t for t in norm(artista).split() if t not in {"and", "os", "as", "o", "a", "e", "de", "da", "do", "dos"}]
+    fortes = [t for t in toks if len(t) >= 4] or toks
+    return bool(fortes) and any(t in palavras for t in fortes)
+
+
+def tokens_post(conteudo):
+    """Sequência, na ordem do post, de ('img', {src, pequena}) e ('faixa', (artista, musica))."""
+    out = []
+    for m in re.finditer(r"<img\b[^>]*>|<p\b[^>]*>(.*?)</p>", conteudo, re.S | re.I):
+        tag = m.group(0)
+        if tag.lower().startswith("<img"):
+            src = re.search(r'\bsrc="([^"]+)"', tag)
+            if not src:
+                continue
+            src = https(urllib.parse.urljoin(SITE, html_lib.unescape(src.group(1))))
+            w = re.search(r'\bwidth="(\d+)"', tag)
+            h = re.search(r'\bheight="(\d+)"', tag)
+            alt = re.search(r'\balt="([^"]*)"', tag)
+            pequena = None  # menor versão com pelo menos 300px de largura, para miniaturas
+            ss = re.search(r'\bsrcset="([^"]+)"', tag)
+            if ss:
+                opcoes = []
+                for parte in html_lib.unescape(ss.group(1)).split(","):
+                    bits = parte.strip().split()
+                    if len(bits) == 2 and bits[1].endswith("w"):
+                        opcoes.append((int(bits[1][:-1]), https(urllib.parse.urljoin(SITE, bits[0]))))
+                boas = sorted(o for o in opcoes if o[0] >= 300)
+                if boas and boas[0][1] != src:
+                    pequena = boas[0][1]
+            out.append(("img", {"src": src, "p": pequena, "w": int(w.group(1)) if w else 0,
+                                "h": int(h.group(1)) if h else 0,
+                                "alt": html_lib.unescape(alt.group(1)) if alt else ""}))
+            # imagem e texto podem estar no mesmo <p>: o texto vem depois
+        if m.group(1) is not None:
+            for linha in re.split(r"<br\s*/?>", m.group(1), flags=re.I):
+                if re.search(r"<img\b", linha, re.I):
+                    for im in re.finditer(r"<img\b[^>]*>", linha, re.I):
+                        out.extend(tokens_post(f"{im.group(0)}"))
+                texto = html_lib.unescape(re.sub(r"<[^>]+>", "", linha)).strip()
+                f = LINHA_FAIXA.match(texto)
+                if f:
+                    out.append(("faixa", (f.group(1).strip(), f.group(2).strip())))
+    return out
+
+
+def fotos_do_post(n, conteudo, faixas_prog):
+    """Devolve {chave_da_faixa: [foto, miniatura]} para um programa."""
+    por_norm = {}
+    for f in faixas_prog:
+        por_norm.setdefault(norm(f["a"]), []).append(f)
+
+    def achar(artista, musica):
+        for f in por_norm.get(norm(artista), []):
+            if musica_bate(musica, f["m"]):
+                return f
+        for f in faixas_prog:  # artista grafado diferente no post e na planilha
+            if musica_bate(musica, f["m"]) and artista_bate(artista, f["a"]):
+                return f
+        return None
+
+    resultado = {}
+    bloco = []
+    for tipo, valor in tokens_post(conteudo):
+        if tipo == "faixa":
+            bloco.append(valor)
+            continue
+        nome = valor["src"].rsplit("/", 1)[-1]
+        alvo = None
+        if bloco and FOTO_DISCO.match(nome):
+            alvo = norm(bloco[-1][0])  # foto do disco na vitrola: último artista do bloco
+        elif bloco and valor["w"] >= 200 and valor["h"] and 0.85 <= valor["w"] / valor["h"] <= 1.18:
+            # capa escaneada (quadrada) com o nome do artista no arquivo — posts mais antigos
+            palavras = palavras_imagem(valor)
+            if not palavras & NAO_CAPA:
+                for artista, _ in reversed(bloco):
+                    if artista_na_imagem(artista, palavras):
+                        alvo = norm(artista)
+                        break
+        if alvo:
+            for artista, musica in bloco:
+                if norm(artista) != alvo:
+                    continue
+                f = achar(artista, musica)
+                if f:
+                    resultado[chave(f["a"], f["m"])] = [valor["src"], valor["p"]]
+        bloco = []  # qualquer imagem fecha o bloco
+    return resultado
+
+
+def atualizar_fotos(faixas, completo):
+    """Lê os posts do site e grava data/fotos-site.json: {"N": {chave: [foto, mini]}}."""
+    fotos = {} if completo else carregar(FOTOS, {})
+    por_prog = {}
+    for f in faixas:
+        por_prog.setdefault(f["p"], []).append(f)
+    vistos, novos = set(), 0
+    for n, post in posts_bula(17 if completo or not fotos else 1):
+        if n in vistos or n not in por_prog:
+            continue  # o primeiro (mais novo) post de cada número vale
+        vistos.add(n)
+        achadas = fotos_do_post(n, post["content"]["rendered"], por_prog[n])
+        if achadas:
+            achadas["_post"] = post.get("link")
+            if fotos.get(str(n)) != achadas:
+                novos += 1
+            fotos[str(n)] = achadas
+    salvar_json(FOTOS, dict(sorted(fotos.items(), key=lambda x: -int(x[0]))), compacto=False)
+    total = sum(len(v) - ("_post" in v) for v in fotos.values())
+    print(f"fotos do site: {len(fotos)} programas, {total} faixas com foto ({novos} programas novos/alterados)")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--limite", type=int, default=2000, help="máximo de buscas de capa nesta rodada")
     ap.add_argument("--csv", help="usar um CSV local em vez de baixar")
+    ap.add_argument("--fotos-completo", action="store_true", help="reler todos os posts do site (não só os 100 mais novos)")
+    ap.add_argument("--so-fotos", action="store_true", help="só atualizar as fotos do site, sem buscar capas no Deezer")
     args = ap.parse_args()
 
     texto = Path(args.csv).read_text() if args.csv else baixar(CSV_URL)
@@ -201,6 +362,13 @@ def main():
         print(f"acervo.json: {len(faixas)} faixas, {len(acervo['programas'])} programas")
     else:
         print("acervo.json: sem mudanças")
+
+    try:
+        atualizar_fotos(faixas, args.fotos_completo)
+    except Exception as e:  # noqa: BLE001  (site fora do ar não pode travar o resto)
+        print(f"fotos do site: erro, mantendo as anteriores ({e})")
+    if args.so_fotos:
+        return
 
     capas = carregar(CAPAS, {})
     falhas = carregar(FALHAS, {})

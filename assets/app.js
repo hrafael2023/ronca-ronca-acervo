@@ -37,21 +37,25 @@
   };
 
   async function carregar() {
-    const [acervo, capas] = await Promise.all([
+    const [acervo, capas, fotos] = await Promise.all([
       fetch("data/acervo.json", { cache: "no-cache" }).then((r) => r.json()),
       fetch("data/capas.json", { cache: "no-cache" }).then((r) => r.json()).catch(() => ({})),
+      // fotos dos discos publicadas nas bulas do site oficial: têm prioridade sobre o Deezer
+      fetch("data/fotos-site.json", { cache: "no-cache" }).then((r) => r.json()).catch(() => ({})),
     ]);
+    D.fotos = fotos;
     const nomeDeezer = new Map();
     for (const [k, c] of Object.entries(capas)) {
       const art = k.split("|")[0];
       if (c[3] && norm(c[3]) === norm(art)) nomeDeezer.set(art, c[3]);
     }
     for (const p of acervo.programas) {
-      const prog = { n: p.n, ano: p.ano, faixas: [] };
+      const prog = { n: p.n, ano: p.ano, faixas: [], bula: (fotos[p.n] || {})._post || null };
       p.f.forEach(([a, m, al], i) => {
         const k = `${a.toLowerCase()}|${m.toLowerCase()}`;
         const chaveA = a.toLowerCase().trim();
-        const f = { p: p.n, ano: p.ano, a, m, al, k, pos: i + 1, chaveA };
+        const foto = (fotos[p.n] || {})[k];
+        const f = { p: p.n, ano: p.ano, a, m, al, k, pos: i + 1, chaveA, foto: foto ? { g: foto[0], p: foto[1] || foto[0] } : null };
         prog.faixas.push(f);
         D.faixas.push(f);
         let mu = D.musicas.get(k);
@@ -62,6 +66,7 @@
         }
         if (!mu.al && al) mu.al = al;
         mu.progs.push(p.n);
+        if (f.foto && !mu.foto) mu.foto = f.foto; // programas vêm do mais novo para o mais antigo
         let ar = D.artistas.get(chaveA);
         if (!ar) {
           ar = { chave: chaveA, nome: nomeDeezer.get(chaveA) || titulo(a.trim()), total: 0, musicas: new Set(), progs: new Set(), primeiro: p.n, ultimo: p.n, na: norm(a) };
@@ -85,7 +90,10 @@
   const nomeArtista = (a) => (D.artistas.get(a.toLowerCase().trim()) || {}).nome || titulo(a);
   const linkArtista = (a) => `<a href="#/artista/${slug(a.trim())}">${esc(nomeArtista(a))}</a>`;
 
-  function capaHTML(mu, t = 250) {
+  // f (opcional) = a faixa num programa específico, que pode ter a foto daquele programa
+  function capaHTML(mu, t = 250, f = null) {
+    const foto = (f && f.foto) || (mu && mu.foto);
+    if (foto) return `<div class="capa foto-site" title="Foto do disco publicada no site do Ronca Ronca"><img loading="lazy" src="${esc(t > 150 ? foto.g : foto.p)}" alt="" onerror="this.parentNode.classList.add('sem');this.remove()"></div>`;
     const md5 = mu && mu.capa;
     if (md5) return `<div class="capa"><img loading="lazy" src="${capaURL(md5, t)}" alt="${esc(mu.album || "")}" onerror="this.parentNode.classList.add('sem');this.remove()"></div>`;
     const ini = (mu ? nomeArtista(mu.a) : "?").replace(/^the /i, "").slice(0, 2);
@@ -180,13 +188,13 @@
     return out + (aberto ? "</mark>" : "");
   }
 
-  function itemHTML(mu, termos, extra = "") {
+  function itemHTML(mu, termos, extra = "", f = null) {
     const progs = mu.progs.slice(0, 8).map((p) => `<a class="chip" href="#/programa/${p}">#${p}</a>`).join("");
     const resto = mu.progs.length > 8 ? `<span class="chip">+${mu.progs.length - 8}</span>` : "";
-    const info = [mu.al ? `lançada em <a href="#/busca?c=ano&q=${mu.al}">${mu.al}</a>` : "", mu.album ? esc(mu.album) : "",
+    const info = [mu.al ? `lançada em <a href="#/busca?c=ano&q=${mu.al}">${mu.al}</a>` : "", mu.album && !mu.foto ? esc(mu.album) : "",
       mu.progs.length > 1 ? `tocada ${mu.progs.length}×` : "",
       mu.deezer ? `<a href="https://www.deezer.com/track/${mu.deezer}" target="_blank" rel="noopener">ouvir ↗</a>` : ""].filter(Boolean).join(" · ");
-    return `<div class="item">${extra}${capaHTML(mu, 120)}
+    return `<div class="item">${extra}${capaHTML(mu, 120, f)}
       <div><div class="t">${marcar(mu.m, termos)}</div>
       <div class="a"><a href="#/artista/${slug(mu.a.trim())}">${marcar(nomeArtista(mu.a), termos)}</a></div>
       <div class="info">${info}</div></div>
@@ -424,7 +432,7 @@
     const estreias = new Set(ult.faixas.filter((f) => D.artistas.get(f.chaveA)?.primeiro === ult.n).map((f) => f.chaveA));
     const comAno = ult.faixas.filter((f) => f.al);
     const idadeUlt = comAno.length ? comAno.reduce((s, f) => s + (ult.ano - f.al), 0) / comAno.length : 0;
-    const mosaico = ult.faixas.map((f) => D.musicas.get(f.k)).filter((m) => m.capa).slice(0, 9);
+    const mosaico = ult.faixas.filter((f) => f.foto || D.musicas.get(f.k).capa).slice(0, 9);
     const veterano = ult.faixas.map((f) => D.artistas.get(f.chaveA)).sort((a, b) => b.total - a.total)[0];
 
     app.innerHTML = `
@@ -434,7 +442,7 @@
         <aside class="prog-card">
           <div class="num">#${ult.n}</div>
           <div class="ano">Ronca Ronca · ${ult.ano}</div>
-          <div class="mosaico">${mosaico.map((m) => capaHTML(m, 120)).join("")}</div>
+          <div class="mosaico">${mosaico.map((f) => capaHTML(D.musicas.get(f.k), 120, f)).join("")}</div>
           <div class="stats">
             <div><b>${ult.faixas.length}</b>faixas</div>
             <div><b>${estreias.size}</b>artistas estreando</div>
@@ -442,7 +450,7 @@
             <div><b>${Math.round(idadeUlt)} anos</b>idade média</div>
           </div>
           ${veterano ? `<p style="font-size:13px;color:#bdc3e0;margin:14px 0 0">Figurinha carimbada: <a style="color:var(--amarelo)" href="#/artista/${slug(veterano.chave)}">${esc(veterano.nome)}</a>, ${fmt(veterano.total)} execuções na história do programa.</p>` : ""}
-          <div class="botoes"><a class="btn" href="#/programa/${ult.n}">Ver setlist</a><a class="btn sec" href="https://www.roncaronca.com.br/" target="_blank" rel="noopener">Ouvir no site ↗</a></div>
+          <div class="botoes"><a class="btn" href="#/programa/${ult.n}">Ver setlist</a><a class="btn sec" href="${esc(ult.bula || "https://www.roncaronca.com.br/")}" target="_blank" rel="noopener">Bula no site ↗</a></div>
         </aside>
         <div class="grade-capas">${ult.faixas.map((f) => cartaoFaixa(f, estreias.has(f.chaveA))).join("")}</div>
       </div>
@@ -464,7 +472,8 @@
   function cartaoFaixa(f, estreia) {
     const mu = D.musicas.get(f.k);
     const vezes = mu.progs.length;
-    return `<div class="faixa-capa">${mu.deezer ? `<a href="https://www.deezer.com/track/${mu.deezer}" target="_blank" rel="noopener" title="Ouvir no Deezer">${capaHTML(mu)}</a>` : capaHTML(mu)}
+    const capa = capaHTML(mu, 250, f);
+    return `<div class="faixa-capa">${mu.deezer ? `<a href="https://www.deezer.com/track/${mu.deezer}" target="_blank" rel="noopener" title="Ouvir no Deezer">${capa}</a>` : capa}
       <div class="t">${esc(f.m)}</div><div class="a">${linkArtista(f.a)}</div>
       <div class="y">${[f.al, vezes > 1 ? `tocada ${vezes}×` : "", estreia ? `<span style="color:var(--destaque);font-weight:700">estreia</span>` : ""].filter(Boolean).join(" · ")}</div></div>`;
   }
@@ -477,10 +486,10 @@
     const ant = nums[i + 1], prox = nums[i - 1];
     const estreias = new Set(prog.faixas.filter((f) => D.artistas.get(f.chaveA)?.primeiro === n).map((f) => f.chaveA));
     app.innerHTML = `<div class="cabeca"><div class="num">#${n}</div><div class="meta"><b>Ronca Ronca · ${prog.ano}</b><br>${prog.faixas.length} faixas · ${estreias.size} artistas estreando no programa</div>
-      <div class="nav">${ant ? `<a href="#/programa/${ant}">← #${ant}</a>` : ""}${prox ? `<a href="#/programa/${prox}">#${prox} →</a>` : ""}</div></div>
+      <div class="nav">${prog.bula ? `<a href="${esc(prog.bula)}" target="_blank" rel="noopener">bula no site ↗</a>` : ""}${ant ? `<a href="#/programa/${ant}">← #${ant}</a>` : ""}${prox ? `<a href="#/programa/${prox}">#${prox} →</a>` : ""}</div></div>
       <div class="grade-capas" style="margin-bottom:28px">${prog.faixas.map((f) => cartaoFaixa(f, estreias.has(f.chaveA))).join("")}</div>
       <h2 style="margin-bottom:12px">Setlist</h2>
-      <div class="lista setlist">${prog.faixas.map((f) => itemHTML(D.musicas.get(f.k), null, `<span class="n">${f.pos}</span>`)).join("")}</div>`;
+      <div class="lista setlist">${prog.faixas.map((f) => itemHTML(D.musicas.get(f.k), null, `<span class="n">${f.pos}</span>`, f)).join("")}</div>`;
   }
 
   function telaArtista(chave) {
@@ -506,9 +515,9 @@
     for (const p of D.programas) { if (!porAno.has(p.ano)) porAno.set(p.ano, []); porAno.get(p.ano).push(p); }
     app.innerHTML = `<div class="secao-topo"><h2>Todos os <b>programas</b></h2><span class="muted">${fmt(D.programas.length)} no acervo</span></div>` +
       [...porAno.entries()].map(([ano, ps]) => `<div class="programas-ano"><h3>${ano} <span class="muted" style="font-size:14px;font-weight:400">· ${ps.length} programas</span></h3><div class="prog-grade">${ps.map((p) => {
-        const caps = p.faixas.map((f) => D.musicas.get(f.k)).filter((m) => m.capa).slice(0, 4);
+        const caps = p.faixas.filter((f) => f.foto || D.musicas.get(f.k).capa).slice(0, 4);
         while (caps.length < 4) caps.push(null);
-        return `<a class="prog-mini" href="#/programa/${p.n}"><div class="mosaico">${caps.map((m) => capaHTML(m, 120)).join("")}</div><b>#${p.n}</b><span>${p.faixas.length} faixas</span></a>`;
+        return `<a class="prog-mini" href="#/programa/${p.n}"><div class="mosaico">${caps.map((f) => (f ? capaHTML(D.musicas.get(f.k), 120, f) : capaHTML(null))).join("")}</div><b>#${p.n}</b><span>${p.faixas.length} faixas</span></a>`;
       }).join("")}</div></div>`).join("");
   }
 
