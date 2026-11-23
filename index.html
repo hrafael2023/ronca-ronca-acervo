@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Acervo Ronca Ronca</title>
+  <meta name="description" content="Todos os setlists do Ronca Ronca desde 2012: busque por artista, música, ano de lançamento ou programa.">
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="assets/logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&family=Source+Sans+3:ital,wght@0,600;0,700;0,800;1,300&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <header class="topo">
+    <div class="topo-in">
+      <a class="marca" href="#/" aria-label="Início">
+        <img src="assets/logo.png" alt="Ronca Ronca" width="140" height="102">
+        <span class="sub"><b>Acervo</b>o programa que orienta desorientando</span>
+      </a>
+      <nav class="menu" aria-label="Seções">
+        <a href="#/" data-rota="">Início</a>
+        <a href="#/programas" data-rota="programas">Programas</a>
+        <a href="#/artistas" data-rota="artistas">Artistas</a>
+        <a href="#/dashboard" data-rota="dashboard">Dashboard</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="faixa-busca">
+    <form class="busca" id="busca" role="search" autocomplete="off">
+      <div class="campo">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
+        <input id="q" type="search" placeholder="Artista, música, ano (1977) ou programa (#500)" aria-label="Buscar no acervo">
+        <select id="campo" aria-label="Buscar em">
+          <option value="tudo">Tudo</option>
+          <option value="artista">Artista</option>
+          <option value="musica">Música</option>
+          <option value="ano">Ano de lançamento</option>
+          <option value="programa">Programa</option>
+        </select>
+      </div>
+      <div class="dicas" id="dicas"></div>
+    </form>
+  </div>
+
+  <main id="app"><div class="carregando">Carregando o acervo…</div></main>
+
+  <footer>
+    <div class="in">
+      <span>Acervo de setlists do <a href="https://www.roncaronca.com.br/" target="_blank" rel="noopener">Ronca Ronca</a>. Dados da planilha DataRonca, atualizados automaticamente. Capas via Deezer.</span>
+      <span><span id="atualizado"></span> · <span class="versao">v1.0</span></span>
+    </div>
+  </footer>
+
+  <div class="dica-flutuante" id="dica" role="tooltip"></div>
+  <script src="assets/app.js"></script>
+</body>
+</html>
