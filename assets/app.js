@@ -471,7 +471,7 @@
   function cartaoFaixa(f) {
     const mu = D.musicas.get(f.k);
     const capa = capaHTML(mu, 250, f);
-    return `<div class="faixa-capa">${mu.deezer ? `<a href="https://www.deezer.com/track/${mu.deezer}" target="_blank" rel="noopener" title="Ouvir no Deezer">${capa}</a>` : capa}
+    return `<div class="faixa-capa">${capa}
       <div class="t">${esc(f.m)}</div><div class="a">${linkArtista(f.a)}</div>
       <div class="y">${f.al || ""}</div></div>`;
   }
