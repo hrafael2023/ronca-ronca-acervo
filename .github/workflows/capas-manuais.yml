@@ -21,17 +21,25 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
       - name: Baixar capas novas
         run: python3 scripts/capas_manuais.py
       - name: Commit se mudou
         run: |
-          if git diff --quiet && [ -z "$(git ls-files --others --exclude-standard capas)" ]; then
-            echo "Nada novo."
-            exit 0
-          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898333+github-actions[bot]@users.noreply.github.com"
-          git add data/capas-manuais.json capas
-          git commit -m "Guarda as capas trocadas à mão"
-          git pull --rebase origin main
-          git push
+          for tentativa in 1 2 3; do
+            if git diff --quiet && [ -z "$(git ls-files --others --exclude-standard capas)" ]; then
+              echo "Nada novo."
+              exit 0
+            fi
+            git add data/capas-manuais.json capas
+            git commit -q -m "Guarda as capas trocadas à mão"
+            if git pull --rebase -q origin main && git push; then exit 0; fi
+            echo "main mudou; refazendo sobre a versão nova ($tentativa)"
+            git rebase --abort 2>/dev/null || true
+            git fetch -q origin main && git reset -q --hard origin/main
+            python3 scripts/capas_manuais.py
+          done
+          exit 1

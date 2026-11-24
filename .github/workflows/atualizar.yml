@@ -19,7 +19,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
+      # ref: main pega o estado mais recente na hora em que o job começa
+      # (sem isso, usa o commit da hora do clique, que pode já estar velho)
       - uses: actions/checkout@v4
+        with:
+          ref: main
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -27,13 +31,22 @@ jobs:
         run: python3 scripts/atualizar.py --limite 1500
       - name: Commit se mudou
         run: |
-          if git diff --quiet -- data; then
-            echo "Nada novo na planilha."
-            exit 0
-          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898333+github-actions[bot]@users.noreply.github.com"
-          git add data
-          git commit -m "Atualiza acervo a partir da planilha ($(date -u +'%Y-%m-%d %H:%M') UTC)"
-          git pull --rebase origin main
-          git push
+          # Se outra atualização gravou antes, descarta a nossa versão,
+          # pega a mais nova e gera tudo de novo em cima dela (até 3 vezes).
+          for tentativa in 1 2 3; do
+            if git diff --quiet -- data; then
+              echo "Nada novo na planilha."
+              exit 0
+            fi
+            git add data
+            git commit -q -m "Atualiza acervo a partir da planilha ($(date -u +'%Y-%m-%d %H:%M') UTC)"
+            if git pull --rebase -q origin main && git push; then exit 0; fi
+            echo "main mudou durante a atualização; refazendo sobre a versão nova ($tentativa)"
+            git rebase --abort 2>/dev/null || true
+            git fetch -q origin main && git reset -q --hard origin/main
+            python3 scripts/atualizar.py --limite 1500
+          done
+          echo "Não consegui gravar depois de 3 tentativas." >&2
+          exit 1
