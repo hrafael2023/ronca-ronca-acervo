@@ -1,6 +1,6 @@
-# Acervo Ronca Ronca
+# Acervo roNca roNca
 
-Todos os setlists do [Ronca Ronca](https://www.roncaronca.com.br/) desde 2012, com busca, capas dos discos e dashboard.
+Todos os setlists do [roNca roNca](https://www.roncaronca.com.br/) desde 2012, com busca, capas dos discos e dashboard.
 
 **Site:** https://hrafael2023.github.io/ronca-ronca-acervo/
 

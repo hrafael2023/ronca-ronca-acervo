@@ -1,4 +1,4 @@
-/* Acervo Ronca Ronca — tudo roda no navegador a partir de data/acervo.json e data/capas.json */
+/* Acervo roNca roNca — tudo roda no navegador a partir de data/acervo.json e data/capas.json */
 (() => {
   "use strict";
 
@@ -112,10 +112,10 @@
   function fonteCapa(mu, t = 250, f = null) {
     // capa escolhida à mão para esta faixa ou para outra variação do nome da mesma música
     const man = mu && (D.manuais[mu.k] || D.manuaisBase[mu.base]);
-    // foto de vitrola vinda do site do Ronca: enquadra pela direita, como as outras fotos do site
+    // foto de vitrola vinda do site do roNca: enquadra pela direita, como as outras fotos do site
     if (man) return { src: man.arquivo || man.url, cls: "manual" + (/roncaronca\.com\.br/.test(man.de || man.url) ? " foto-site" : ""), titulo: "Capa escolhida à mão" };
     const foto = (f && f.foto) || (mu && mu.foto);
-    if (foto) return { src: t > 150 ? foto.g : foto.p, cls: "foto-site", titulo: "Foto do disco publicada no site do Ronca Ronca" };
+    if (foto) return { src: t > 150 ? foto.g : foto.p, cls: "foto-site", titulo: "Foto do disco publicada no site do roNca roNca" };
     if (mu && mu.capa) return { src: capaURL(mu.capa, t), cls: "", titulo: "" };
     return null;
   }
@@ -422,7 +422,7 @@
       <div class="destaque-prog">
         <aside class="prog-card">
           <div class="num">#${ult.n}</div>
-          <div class="ano">Ronca Ronca · ${ult.ano}</div>
+          <div class="ano">roNca roNca · ${ult.ano}</div>
           <div class="mosaico">${mosaico.map((f) => capaHTML(D.musicas.get(f.k), 120, f)).join("")}</div>
           <div class="stats">
             <div><b>${ult.faixas.length}</b>faixas</div>
@@ -437,7 +437,7 @@
       </div>
     </section>
     <section class="secao">
-      <div class="secao-topo"><h2>O Ronca em <b>números</b></h2><a class="mais" href="#/numeros">mais números →</a></div>
+      <div class="secao-topo"><h2>O roNca em <b>números</b></h2><a class="mais" href="#/numeros">mais números →</a></div>
       ${kpisHTML(est)}
       <div class="graficos">
         <div class="cartao grafico"><h3>Artistas mais tocados</h3><div class="leg">execuções desde 2012 · clique para ver o artista</div><div id="g-top"></div></div>
@@ -465,7 +465,7 @@
     const i = nums.indexOf(n);
     const ant = nums[i + 1], prox = nums[i - 1];
     const estreias = new Set(prog.faixas.filter((f) => D.artistas.get(f.chaveA)?.primeiro === n).map((f) => f.chaveA));
-    app.innerHTML = `<div class="cabeca"><div class="num">#${n}</div><div class="meta"><b>Ronca Ronca · ${prog.ano}</b><br>${qtd(prog.faixas.length, "faixa")} · ${qtd(estreias.size, "artista estreando", "artistas estreando")} no programa</div>
+    app.innerHTML = `<div class="cabeca"><div class="num">#${n}</div><div class="meta"><b>roNca roNca · ${prog.ano}</b><br>${qtd(prog.faixas.length, "faixa")} · ${qtd(estreias.size, "artista estreando", "artistas estreando")} no programa</div>
       <div class="nav">${prog.bula ? `<a href="${esc(prog.bula)}" target="_blank" rel="noopener">bula no site ↗</a>` : ""}${ant ? `<a href="#/programa/${ant}">← #${ant}</a>` : ""}${prox ? `<a href="#/programa/${prox}">#${prox} →</a>` : ""}</div></div>
       <div class="grade-capas" style="margin-bottom:28px">${prog.faixas.map((f) => cartaoFaixa(f)).join("")}</div>
       <h2 style="margin-bottom:12px">Setlist</h2>
@@ -714,7 +714,7 @@
       const dist = (c) => (/^\d{4}$/.test(c.ano) ? Math.abs(+c.ano - mu.al) : 999);
       lista.sort((a, b) => dist(a) - dist(b));
     }
-    candidatas = [...candidatas.filter((c) => c.fonte.startsWith("Site do Ronca")), ...lista.slice(0, 36)];
+    candidatas = [...candidatas.filter((c) => c.fonte.startsWith("Site do roNca")), ...lista.slice(0, 36)];
     desenharCandidatas();
   }
 
@@ -722,7 +722,7 @@
   function desenharCandidatas() {
     const caixa = $("#ed-opcoes");
     if (!candidatas.length) {
-      caixa.innerHTML = `<p class="ed-carregando">Nenhuma capa encontrada. Tente o site do Ronca ou o Google Imagens (e cole o endereço abaixo).</p>`;
+      caixa.innerHTML = `<p class="ed-carregando">Nenhuma capa encontrada. Tente o site do roNca ou o Google Imagens (e cole o endereço abaixo).</p>`;
       return;
     }
     caixa.innerHTML = candidatas.map((c, i) => `<button type="button" class="ed-opcao${c.provavel ? " provavel" : ""}" data-i="${i}" title="${esc(c.titulo || "")}${c.ano ? " (" + c.ano + ")" : ""} · ${esc(c.fonte)}">
@@ -736,7 +736,7 @@
     };
   }
 
-  // ---- imagens das bulas do site do Ronca (a API do WordPress deles libera o acesso) ----
+  // ---- imagens das bulas do site do roNca (a API do WordPress deles libera o acesso) ----
   const SITE_RONCA = "https://www.roncaronca.com.br";
   const IMG_NAO_CAPA = /free_?radio|weapon_?tico|musica\.conecta|apoiase|^\d+(?:-\d+)?\.(?:jpe?g|png)$/i;
   async function bulaDoPrograma(n) {
@@ -779,7 +779,7 @@
         const op = ss.split(",").map((x) => x.trim().split(/\s+/)).filter((x) => /w$/.test(x[1] || "")).map((x) => [parseInt(x[1]), x[0]]).filter((x) => x[0] >= 300).sort((a, b) => a[0] - b[0]);
         if (op.length) mini = absoluto(op[0][1]);
       }
-      out.push({ mini, grande: absoluto(src), titulo: ehDaFaixa ? "logo depois da faixa" : nome, ano: "", fonte: `Site do Ronca · #${n}`, provavel: ehDaFaixa });
+      out.push({ mini, grande: absoluto(src), titulo: ehDaFaixa ? "logo depois da faixa" : nome, ano: "", fonte: `Site do roNca · #${n}`, provavel: ehDaFaixa });
     });
     return out;
   }
@@ -801,12 +801,12 @@
       const vistas = new Set();
       const unicas = achadas.sort((a, b) => b.provavel - a.provavel).filter((c) => !vistas.has(c.grande) && vistas.add(c.grande));
       if (!unicas.length) { mensagemEd(`Nenhuma imagem de disco nas bulas ${progs.map((p) => "#" + p).join(", ")}.`, "erro"); return; }
-      candidatas = [...unicas, ...candidatas.filter((c) => !c.fonte.startsWith("Site do Ronca"))];
+      candidatas = [...unicas, ...candidatas.filter((c) => !c.fonte.startsWith("Site do roNca"))];
       desenharCandidatas();
       $("#ed-opcoes").scrollTop = 0;
-      mensagemEd(unicas.some((c) => c.provavel) ? "Imagens do site do Ronca no topo; a marcada com ★ vem logo depois da faixa na bula." : "Imagens do site do Ronca no topo (nenhuma colada à faixa; confira).");
+      mensagemEd(unicas.some((c) => c.provavel) ? "Imagens do site do roNca no topo; a marcada com ★ vem logo depois da faixa na bula." : "Imagens do site do roNca no topo (nenhuma colada à faixa; confira).");
     } catch (e) {
-      mensagemEd("Não deu para consultar o site do Ronca: " + e.message, "erro");
+      mensagemEd("Não deu para consultar o site do roNca: " + e.message, "erro");
     } finally {
       btn.disabled = false;
     }
