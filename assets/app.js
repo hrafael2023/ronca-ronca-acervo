@@ -460,7 +460,7 @@
 
   function telaPrograma(n) {
     const prog = D.porNumero.get(n);
-    if (!prog) { app.innerHTML = `<div class="vazio">Programa #${n} não está no acervo.</div>`; return; }
+    if (!prog) { app.innerHTML = `<div class="vazio">Programa #${n} não está no Na UÉBI.</div>`; return; }
     const nums = D.programas.map((p) => p.n);
     const i = nums.indexOf(n);
     const ant = nums[i + 1], prox = nums[i - 1];
@@ -495,7 +495,7 @@
   function telaProgramas() {
     const porAno = new Map();
     for (const p of D.programas) { if (!porAno.has(p.ano)) porAno.set(p.ano, []); porAno.get(p.ano).push(p); }
-    app.innerHTML = `<div class="secao-topo"><h2>Todos os <b>programas</b></h2><span class="muted">${fmt(D.programas.length)} no acervo</span></div>` +
+    app.innerHTML = `<div class="secao-topo"><h2>Todos os <b>programas</b></h2><span class="muted">${fmt(D.programas.length)} no Na UÉBI</span></div>` +
       [...porAno.entries()].map(([ano, ps]) => `<div class="programas-ano"><h3>${ano} <span class="muted" style="font-size:14px;font-weight:400">· ${qtd(ps.length, "programa")}</span></h3><div class="prog-grade">${ps.map((p) => {
         const caps = p.faixas.filter((f) => f.foto || D.musicas.get(f.k).capa).slice(0, 4);
         while (caps.length < 4) caps.push(null);
@@ -531,7 +531,7 @@
     const pico = [...est.porAnoLanc.entries()].sort((a, b) => b[1] - a[1])[0];
     const decTop = [...est.porDecada.entries()].sort((a, b) => b[1] - a[1])[0];
     const umaVez = [...D.artistas.values()].filter((a) => a.total === 1).length;
-    app.innerHTML = `<div class="secao-topo"><h2>O acervo em <b>números</b></h2></div>
+    app.innerHTML = `<div class="secao-topo"><h2>O Na UÉBI em <b>números</b></h2></div>
       ${kpisHTML(est)}
       <div class="kpis">
         <div class="kpi"><div class="v">${decTop[0] < 2000 ? "Anos " + String(decTop[0]).slice(2) : decTop[0] + "s"}</div><div class="r">década favorita</div><div class="s">${fmt1((decTop[1] / D.faixas.length) * 100)}% das faixas</div></div>
@@ -1034,7 +1034,7 @@
     document.body.classList.remove("bloqueado");
     carregar().then(() => { D.pronto = true; dicas(); rotear(); }).catch((e) => {
       console.error(e);
-      app.innerHTML = `<div class="vazio">Não deu para carregar o acervo. Recarregue a página.</div>`;
+      app.innerHTML = `<div class="vazio">Não deu para carregar o Na UÉBI. Recarregue a página.</div>`;
     });
   }
 
