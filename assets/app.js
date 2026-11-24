@@ -12,6 +12,8 @@
   const norm = (s) => String(s ?? "").toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "")
     .replace(/[’`´]/g, "'").replace(/[^a-z0-9' ]+/g, " ").replace(/\s+/g, " ").trim();
   const fmt = (n) => Number(n).toLocaleString("pt-BR");
+  // número + palavra no singular ou plural: qtd(1, "faixa") → "1 faixa"; qtd(2, "música") → "2 músicas"
+  const qtd = (n, sing, plur = sing + "s", f = fmt) => `${f(n)} ${Math.round(n * 10) / 10 === 1 ? sing : plur}`;
   const fmt1 = (n) => Number(n).toLocaleString("pt-BR", { maximumFractionDigits: 1, minimumFractionDigits: 1 });
   const decada = (a) => (a ? Math.floor(a / 10) * 10 : null);
   const slug = (a) => encodeURIComponent(a.toLowerCase());
@@ -185,9 +187,8 @@
 
   function ordenar(lista, modo) {
     const f = {
-      relevancia: (a, b) => b.s - a.s || b.mu.progs.length - a.mu.progs.length || b.mu.progs[0] - a.mu.progs[0],
       tocadas: (a, b) => b.mu.progs.length - a.mu.progs.length || b.mu.progs[0] - a.mu.progs[0],
-      recentes: (a, b) => b.mu.progs[0] - a.mu.progs[0],
+      recentes: (a, b) => b.mu.progs[0] - a.mu.progs[0] || b.s - a.s || b.mu.progs.length - a.mu.progs.length,
       antigas: (a, b) => (a.mu.al || 9999) - (b.mu.al || 9999),
       novas: (a, b) => (b.mu.al || 0) - (a.mu.al || 0),
       artista: (a, b) => a.mu.na.localeCompare(b.mu.na) || a.mu.nm.localeCompare(b.mu.nm),
@@ -213,15 +214,13 @@
   function telaBusca(params) {
     const q = params.get("q") || "";
     const campo = params.get("c") || "tudo";
-    const dec = params.get("d") || "";
     const ord = params.get("o") || "";
     $("#q").value = q;
     $("#campo").value = campo;
     const { c, lista: bruta, ordenado } = buscar(q, campo);
     if (!c) return telaInicio();
     let lista = bruta;
-    if (dec) lista = lista.filter((r) => decada(r.mu.al) === +dec);
-    const modo = ord || (ordenado ? "" : c.tipo === "texto" ? "relevancia" : "tocadas");
+    const modo = ord || "recentes";
     lista = ordenar(lista, modo);
     const total = lista.length;
     const termos = c.tipo === "texto" ? c.termos : null;
@@ -230,33 +229,29 @@
     let artistaTopo = "";
     if (c.tipo === "texto" && c.campo !== "musica") {
       const cands = [...D.artistas.values()].filter((a) => a.na === c.q || (c.q.length > 3 && (" " + a.na).includes(" " + c.q))).sort((a, b) => b.total - a.total).slice(0, 3);
-      if (cands.length) artistaTopo = `<div class="filtros">${cands.map((a) => `<a class="chip" style="font-size:14px;padding:6px 14px" href="#/artista/${slug(a.chave)}">${esc(a.nome)} — ${fmt(a.total)} execuções →</a>`).join("")}</div>`;
+      if (cands.length) artistaTopo = `<div class="filtros">${cands.map((a) => `<a class="chip" style="font-size:14px;padding:6px 14px" href="#/artista/${slug(a.chave)}">${esc(a.nome)} — ${qtd(a.total, "execução", "execuções")} →</a>`).join("")}</div>`;
     }
     let titulo;
     if (c.tipo === "programa") titulo = c.de === c.ate ? `Programa <b>#${c.de}</b>` : `Programas <b>#${c.de}–#${c.ate}</b>`;
     else if (c.tipo === "ano") titulo = c.de === c.ate ? `Lançadas em <b>${c.de}</b>` : `Lançadas entre <b>${c.de}–${c.ate}</b>`;
     else titulo = `Resultados para <b>“${esc(q)}”</b>`;
 
-    const decadas = [...new Set(bruta.map((r) => decada(r.mu.al)).filter(Boolean))].sort();
     const opt = (v, t, sel) => `<option value="${v}"${String(sel) === String(v) ? " selected" : ""}>${t}</option>`;
     estadoBusca = { lista, termos, pagina: 1 };
     app.innerHTML = `<section class="secao">
       <div class="secao-topo"><h2>${titulo}</h2>${c.tipo === "programa" && c.de === c.ate && D.porNumero.has(c.de) ? `<a class="mais" href="#/programa/${c.de}">ver página do programa →</a>` : ""}</div>
       ${artistaTopo}
       <div class="filtros">
-        <span class="total">${fmt(total)} ${total === 1 ? "música" : "músicas"}</span>
-        <select id="f-dec" aria-label="Década de lançamento">${opt("", "Todas as décadas", dec)}${decadas.map((d) => opt(d, `Anos ${String(d).slice(2)} (${d})`, dec)).join("")}</select>
-        <select id="f-ord" aria-label="Ordenar">${opt("", ordenado ? "Ordem do setlist" : "Padrão", ord)}${opt("relevancia", "Relevância", ord)}${opt("tocadas", "Mais tocadas", ord)}${opt("recentes", "Tocadas recentemente", ord)}${opt("novas", "Lançamento: mais novas", ord)}${opt("antigas", "Lançamento: mais antigas", ord)}${opt("artista", "Artista A–Z", ord)}</select>
+        <span class="total">${qtd(total, "música")}</span>
+        <select id="f-ord" aria-label="Ordenar">${opt("", "Tocadas recentemente", ord)}${ordenado ? opt("setlist", "Ordem do setlist", ord) : ""}${opt("tocadas", "Mais tocadas", ord)}${opt("novas", "Lançamento: mais novas", ord)}${opt("antigas", "Lançamento: mais antigas", ord)}${opt("artista", "Artista A–Z", ord)}</select>
       </div>
       ${total ? `<div class="lista" id="lista"></div><div class="paginar" id="paginar"></div>` : `<div class="vazio cartao">Nada encontrado. Tente só o nome do artista, ou parte do título.</div>`}
     </section>`;
     const atualizarFiltro = () => {
       const p = new URLSearchParams({ q, c: campo });
-      if ($("#f-dec").value) p.set("d", $("#f-dec").value);
       if ($("#f-ord").value) p.set("o", $("#f-ord").value);
       irPara("#/busca?" + p, true);
     };
-    $("#f-dec").onchange = atualizarFiltro;
     $("#f-ord").onchange = atualizarFiltro;
     if (total) desenharPagina();
   }
@@ -417,20 +412,20 @@
     return `<div class="kpis">
       <div class="kpi"><div class="v">${fmt(D.programas.length)}</div><div class="r">programas</div><div class="s">de ${anos[0]} a ${anos[anos.length - 1]}</div></div>
       <div class="kpi"><div class="v">${fmt(D.faixas.length)}</div><div class="r">faixas tocadas</div><div class="s">${fmt1(D.faixas.length / D.programas.length)} por programa</div></div>
-      <div class="kpi"><div class="v">${fmt(D.artistas.size)}</div><div class="r">artistas</div><div class="s">${fmt(D.musicas.size)} músicas diferentes</div></div>
-      <div class="kpi"><div class="v">${Math.round(est.idadeMedia)} anos</div><div class="r">idade média da música</div><div class="s">entre lançamento e execução</div></div>
+      <div class="kpi"><div class="v">${fmt(D.artistas.size)}</div><div class="r">artistas</div><div class="s">${qtd(D.musicas.size, "música diferente", "músicas diferentes")}</div></div>
+      <div class="kpi"><div class="v">${qtd(Math.round(est.idadeMedia), "ano")}</div><div class="r">idade média da música</div><div class="s">entre lançamento e execução</div></div>
     </div>`;
   }
 
   function graficoDecadas(el, est) {
     const decs = [...est.porDecada.entries()].sort((a, b) => a[0] - b[0]);
     const tot = decs.reduce((s, d) => s + d[1], 0);
-    colunas(el, decs.map(([d, v]) => ({ x: d, v, href: `#/busca?c=ano&q=${d}s`, dica: `<b>Anos ${String(d).slice(2)}</b><br>${fmt(v)} faixas · ${fmt1((v / tot) * 100)}%` })),
+    colunas(el, decs.map(([d, v]) => ({ x: d, v, href: `#/busca?c=ano&q=${d}s`, dica: `<b>Anos ${String(d).slice(2)}</b><br>${qtd(v, "faixa")} · ${fmt1((v / tot) * 100)}%` })),
       { formatoX: (x) => (x < 2000 && x > 1900 ? "’" + String(x).slice(2) : String(x)), rotuloCada: largura(el) < 400 ? 2 : 1 });
   }
 
   function graficoTopArtistas(el, est, n) {
-    barrasH(el, est.artistasTop.slice(0, n).map((a) => ({ r: a.nome, v: a.total, href: `#/artista/${slug(a.chave)}`, dica: `<b>${esc(a.nome)}</b><br>${fmt(a.total)} execuções em ${fmt(a.progs.size)} programas<br>${fmt(a.musicas.size)} músicas diferentes` })));
+    barrasH(el, est.artistasTop.slice(0, n).map((a) => ({ r: a.nome, v: a.total, href: `#/artista/${slug(a.chave)}`, dica: `<b>${esc(a.nome)}</b><br>${qtd(a.total, "execução", "execuções")} em ${qtd(a.progs.size, "programa")}<br>${qtd(a.musicas.size, "música diferente", "músicas diferentes")}` })));
   }
 
   // ---------- telas ----------
@@ -455,9 +450,9 @@
             <div><b>${ult.faixas.length}</b>faixas</div>
             <div><b>${estreias.size}</b>artistas estreando</div>
             <div><b>${comAno.length ? Math.min(...comAno.map((f) => f.al)) : "–"}</b>a mais antiga</div>
-            <div><b>${Math.round(idadeUlt)} anos</b>idade média</div>
+            <div><b>${qtd(Math.round(idadeUlt), "ano")}</b>idade média</div>
           </div>
-          ${veterano ? `<p style="font-size:13px;color:#bdc3e0;margin:14px 0 0">Figurinha carimbada: <a style="color:var(--amarelo)" href="#/artista/${slug(veterano.chave)}">${esc(veterano.nome)}</a>, ${fmt(veterano.total)} execuções na história do programa.</p>` : ""}
+          ${veterano ? `<p style="font-size:13px;color:#bdc3e0;margin:14px 0 0">Figurinha carimbada: <a style="color:var(--amarelo)" href="#/artista/${slug(veterano.chave)}">${esc(veterano.nome)}</a>, ${qtd(veterano.total, "execução", "execuções")} na história do programa.</p>` : ""}
           <div class="botoes"><a class="btn" href="#/programa/${ult.n}">Ver setlist</a><a class="btn sec" href="${esc(ult.bula || "https://www.roncaronca.com.br/")}" target="_blank" rel="noopener">Bula no site ↗</a></div>
         </aside>
         <div class="grade-capas">${ult.faixas.map((f) => cartaoFaixa(f)).join("")}</div>
@@ -474,7 +469,7 @@
     </section>`;
     registrar(() => graficoTopArtistas($("#g-top"), est, 12));
     registrar(() => graficoDecadas($("#g-dec"), est));
-    registrar(() => colunas($("#g-ano"), est.anosRonca.map((a) => ({ x: a, v: est.porAnoRonca.get(a), dica: `<b>${a}</b><br>${fmt(est.porAnoRonca.get(a))} faixas` })), { altura: 140, formatoX: (x) => "’" + String(x).slice(2), rotuloCada: largura($("#g-ano")) < 420 ? 2 : 1 }));
+    registrar(() => colunas($("#g-ano"), est.anosRonca.map((a) => ({ x: a, v: est.porAnoRonca.get(a), dica: `<b>${a}</b><br>${qtd(est.porAnoRonca.get(a), "faixa")}` })), { altura: 140, formatoX: (x) => "’" + String(x).slice(2), rotuloCada: largura($("#g-ano")) < 420 ? 2 : 1 }));
   }
 
   function cartaoFaixa(f) {
@@ -492,7 +487,7 @@
     const i = nums.indexOf(n);
     const ant = nums[i + 1], prox = nums[i - 1];
     const estreias = new Set(prog.faixas.filter((f) => D.artistas.get(f.chaveA)?.primeiro === n).map((f) => f.chaveA));
-    app.innerHTML = `<div class="cabeca"><div class="num">#${n}</div><div class="meta"><b>Ronca Ronca · ${prog.ano}</b><br>${prog.faixas.length} faixas · ${estreias.size} artistas estreando no programa</div>
+    app.innerHTML = `<div class="cabeca"><div class="num">#${n}</div><div class="meta"><b>Ronca Ronca · ${prog.ano}</b><br>${qtd(prog.faixas.length, "faixa")} · ${qtd(estreias.size, "artista estreando", "artistas estreando")} no programa</div>
       <div class="nav">${prog.bula ? `<a href="${esc(prog.bula)}" target="_blank" rel="noopener">bula no site ↗</a>` : ""}${ant ? `<a href="#/programa/${ant}">← #${ant}</a>` : ""}${prox ? `<a href="#/programa/${prox}">#${prox} →</a>` : ""}</div></div>
       <div class="grade-capas" style="margin-bottom:28px">${prog.faixas.map((f) => cartaoFaixa(f)).join("")}</div>
       <h2 style="margin-bottom:12px">Setlist</h2>
@@ -510,23 +505,23 @@
     const capa = musicas.find((m) => m.capa);
     const letra = letraDoArtista(ar.nome);
     app.innerHTML = `<div class="cabeca">${capa ? `<div style="width:120px">${capaHTML(capa)}</div>` : ""}<div><h2><b>${esc(ar.nome)}</b></h2>
-      <div class="meta" style="margin-top:6px">${fmt(ar.total)} execuções · ${fmt(ar.musicas.size)} músicas · ${fmt(ar.progs.size)} programas · ${rank}º mais tocado<br>
+      <div class="meta" style="margin-top:6px">${qtd(ar.total, "execução", "execuções")} · ${qtd(ar.musicas.size, "música")} · ${qtd(ar.progs.size, "programa")} · ${rank}º mais tocado<br>
       Estreou no <a href="#/programa/${ar.primeiro}">#${ar.primeiro}</a> · última vez no <a href="#/programa/${ar.ultimo}">#${ar.ultimo}</a></div></div>
       <div class="nav"><a href="#/artistas?l=${encodeURIComponent(letra)}" title="Voltar à lista de artistas com ${letra}">← Artistas · ${letra}</a></div></div>
       <div class="graficos" style="margin-bottom:24px"><div class="cartao grafico largo"><h3>Execuções por ano do programa</h3><div class="leg">quantas faixas de ${esc(ar.nome)} tocaram em cada ano</div><div id="g-art"></div></div></div>
       <h2 style="margin-bottom:12px">Músicas tocadas</h2>
       <div class="lista">${musicas.map((m) => itemHTML(m)).join("")}</div>`;
-    registrar(() => colunas($("#g-art"), est.anosRonca.map((a) => ({ x: a, v: porAno.get(a) || 0, dica: `<b>${a}</b><br>${fmt(porAno.get(a) || 0)} execuções` })), { altura: 150, formatoX: (x) => "’" + String(x).slice(2) }));
+    registrar(() => colunas($("#g-art"), est.anosRonca.map((a) => ({ x: a, v: porAno.get(a) || 0, dica: `<b>${a}</b><br>${qtd(porAno.get(a) || 0, "execução", "execuções")}` })), { altura: 150, formatoX: (x) => "’" + String(x).slice(2) }));
   }
 
   function telaProgramas() {
     const porAno = new Map();
     for (const p of D.programas) { if (!porAno.has(p.ano)) porAno.set(p.ano, []); porAno.get(p.ano).push(p); }
     app.innerHTML = `<div class="secao-topo"><h2>Todos os <b>programas</b></h2><span class="muted">${fmt(D.programas.length)} no acervo</span></div>` +
-      [...porAno.entries()].map(([ano, ps]) => `<div class="programas-ano"><h3>${ano} <span class="muted" style="font-size:14px;font-weight:400">· ${ps.length} programas</span></h3><div class="prog-grade">${ps.map((p) => {
+      [...porAno.entries()].map(([ano, ps]) => `<div class="programas-ano"><h3>${ano} <span class="muted" style="font-size:14px;font-weight:400">· ${qtd(ps.length, "programa")}</span></h3><div class="prog-grade">${ps.map((p) => {
         const caps = p.faixas.filter((f) => f.foto || D.musicas.get(f.k).capa).slice(0, 4);
         while (caps.length < 4) caps.push(null);
-        return `<a class="prog-mini" href="#/programa/${p.n}"><div class="mosaico">${caps.map((f) => (f ? capaHTML(D.musicas.get(f.k), 120, f) : capaHTML(null))).join("")}</div><b>#${p.n}</b><span>${p.faixas.length} faixas</span></a>`;
+        return `<a class="prog-mini" href="#/programa/${p.n}"><div class="mosaico">${caps.map((f) => (f ? capaHTML(D.musicas.get(f.k), 120, f) : capaHTML(null))).join("")}</div><b>#${p.n}</b><span>${qtd(p.faixas.length, "faixa")}</span></a>`;
       }).join("")}</div></div>`).join("");
   }
 
@@ -543,7 +538,7 @@
       const lista = todos.filter((a) => letraDe(a) === letraAtual);
       $("#art-lista").innerHTML = lista.map((a) => `<a href="#/artista/${slug(a.chave)}">${esc(a.nome)}<span>${a.total}</span></a>`).join("") || `<div class="muted">Nenhum artista.</div>`;
     };
-    app.innerHTML = `<div class="secao-topo"><h2>Todos os <b>artistas</b></h2><span class="muted">${fmt(todos.length)} artistas · o número é o total de execuções</span></div>
+    app.innerHTML = `<div class="secao-topo"><h2>Todos os <b>artistas</b></h2><span class="muted">${qtd(todos.length, "artista")} · o número é o total de execuções</span></div>
       <div class="letras" id="letras"></div><div class="cartao"><div class="artistas-lista" id="art-lista"></div></div>`;
     $("#letras").onclick = (e) => { const b = e.target.closest("button"); if (b) { letraAtual = b.dataset.l; history.replaceState(null, "", "#/artistas?l=" + encodeURIComponent(letraAtual)); desenhar(); } };
     desenhar();
@@ -554,7 +549,7 @@
     const anosLanc = [];
     const minLanc = Math.min(...est.porAnoLanc.keys());
     for (let a = Math.max(1920, minLanc); a <= ANO_ATUAL; a++) anosLanc.push(a);
-    const idadeDados = est.anosRonca.filter((a) => est.idade.get(a)).map((a) => { const i = est.idade.get(a); return { x: a, v: i.s / i.n, n: i.novas / i.n, dica: `<b>${a}</b><br>idade média: ${fmt1(i.s / i.n)} anos<br>${fmt1((i.novas / i.n) * 100)}% lançadas no ano ou no anterior` }; });
+    const idadeDados = est.anosRonca.filter((a) => est.idade.get(a)).map((a) => { const i = est.idade.get(a); return { x: a, v: i.s / i.n, n: i.novas / i.n, dica: `<b>${a}</b><br>idade média: ${qtd(i.s / i.n, "ano", "anos", fmt1)}<br>${fmt1((i.novas / i.n) * 100)}% lançadas no ano ou no anterior` }; });
     const pico = [...est.porAnoLanc.entries()].sort((a, b) => b[1] - a[1])[0];
     const decTop = [...est.porDecada.entries()].sort((a, b) => b[1] - a[1])[0];
     const umaVez = [...D.artistas.values()].filter((a) => a.total === 1).length;
@@ -562,7 +557,7 @@
       ${kpisHTML(est)}
       <div class="kpis">
         <div class="kpi"><div class="v">${decTop[0] < 2000 ? "Anos " + String(decTop[0]).slice(2) : decTop[0] + "s"}</div><div class="r">década favorita</div><div class="s">${fmt1((decTop[1] / D.faixas.length) * 100)}% das faixas</div></div>
-        <div class="kpi"><div class="v">${pico[0]}</div><div class="r">ano de lançamento mais tocado</div><div class="s">${fmt(pico[1])} faixas</div></div>
+        <div class="kpi"><div class="v">${pico[0]}</div><div class="r">ano de lançamento mais tocado</div><div class="s">${qtd(pico[1], "faixa")}</div></div>
         <div class="kpi"><div class="v">${fmt(umaVez)}</div><div class="r">artistas tocados uma única vez</div><div class="s">${fmt1((umaVez / D.artistas.size) * 100)}% do total</div></div>
         <div class="kpi"><div class="v">${fmt(est.musicasTop[0].progs.length)}×</div><div class="r">a música mais repetida</div><div class="s">${esc(est.musicasTop[0].m)} — ${esc(nomeArtista(est.musicasTop[0].a))}</div></div>
       </div>
@@ -580,12 +575,12 @@
         <div class="cartao grafico"><h3>O mais tocado de cada ano</h3><div class="leg">artista com mais execuções em cada ano do programa</div><div id="d-campeoes"></div></div>
       </div>`;
     registrar(() => graficoTopArtistas($("#d-top"), est, 25));
-    registrar(() => barrasH($("#d-mus"), est.musicasTop.slice(0, 25).map((m) => ({ r: `${m.m} — ${nomeArtista(m.a)}`, v: m.progs.length, href: `#/artista/${slug(m.a.trim())}`, dica: `<b>${esc(m.m)}</b><br>${esc(nomeArtista(m.a))}${m.al ? " · " + m.al : ""}<br>tocada em ${m.progs.length} programas` })), { rotuloW: 230 }));
-    registrar(() => { const el = $("#d-lanc"); const W = largura(el); colunas(el, anosLanc.map((a) => ({ x: a, v: est.porAnoLanc.get(a) || 0, href: `#/busca?c=ano&q=${a}`, dica: `<b>${a}</b><br>${fmt(est.porAnoLanc.get(a) || 0)} faixas` })), { altura: 200, rotuloCada: W < 500 ? 20 : 10 }); });
+    registrar(() => barrasH($("#d-mus"), est.musicasTop.slice(0, 25).map((m) => ({ r: `${m.m} — ${nomeArtista(m.a)}`, v: m.progs.length, href: `#/artista/${slug(m.a.trim())}`, dica: `<b>${esc(m.m)}</b><br>${esc(nomeArtista(m.a))}${m.al ? " · " + m.al : ""}<br>tocada em ${qtd(m.progs.length, "programa")}` })), { rotuloW: 230 }));
+    registrar(() => { const el = $("#d-lanc"); const W = largura(el); colunas(el, anosLanc.map((a) => ({ x: a, v: est.porAnoLanc.get(a) || 0, href: `#/busca?c=ano&q=${a}`, dica: `<b>${a}</b><br>${qtd(est.porAnoLanc.get(a) || 0, "faixa")}` })), { altura: 200, rotuloCada: W < 500 ? 20 : 10 }); });
     registrar(() => graficoDecadas($("#d-dec"), est));
     registrar(() => linha($("#d-idade"), idadeDados));
     registrar(() => mapaCalor($("#d-mapa"), est));
-    registrar(() => colunas($("#d-ano"), est.anosRonca.map((a) => ({ x: a, v: est.porAnoRonca.get(a), dica: `<b>${a}</b><br>${fmt(est.porAnoRonca.get(a))} faixas` })), { altura: 160, formatoX: (x) => "’" + String(x).slice(2), rotuloCada: largura($("#d-ano")) < 420 ? 2 : 1 }));
+    registrar(() => colunas($("#d-ano"), est.anosRonca.map((a) => ({ x: a, v: est.porAnoRonca.get(a), dica: `<b>${a}</b><br>${qtd(est.porAnoRonca.get(a), "faixa")}` })), { altura: 160, formatoX: (x) => "’" + String(x).slice(2), rotuloCada: largura($("#d-ano")) < 420 ? 2 : 1 }));
     // campeões por ano
     const camp = est.anosRonca.map((ano) => {
       const c = new Map();
@@ -593,7 +588,7 @@
       const [k, v] = [...c.entries()].sort((a, b) => b[1] - a[1])[0];
       return { ano, ar: D.artistas.get(k), v };
     }).reverse();
-    $("#d-campeoes").innerHTML = `<table class="tabela-dados"><tbody>${camp.map((c) => `<tr><td>${c.ano}</td><td><a href="#/artista/${slug(c.ar.chave)}">${esc(c.ar.nome)}</a></td><td class="n">${c.v} faixas</td></tr>`).join("")}</tbody></table>`;
+    $("#d-campeoes").innerHTML = `<table class="tabela-dados"><tbody>${camp.map((c) => `<tr><td>${c.ano}</td><td><a href="#/artista/${slug(c.ar.chave)}">${esc(c.ar.nome)}</a></td><td class="n">${qtd(c.v, "faixa")}</td></tr>`).join("")}</tbody></table>`;
   }
 
   // ---------- rotas ----------
