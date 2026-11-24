@@ -2,10 +2,10 @@ name: Atualizar acervo
 
 # Lê a planilha DataRonca, regenera data/acervo.json e busca capas novas.
 # Se algo mudou, faz commit — e o GitHub Pages publica sozinho.
+# Só roda quando alguém pede: o ícone de atualizar no site (admin)
+# ou o botão "Run workflow" na aba Actions. Não há mais atualização automática.
 on:
-  schedule:
-    - cron: "17 */3 * * *"   # a cada 3 horas
-  workflow_dispatch: {}       # botão "Run workflow" na aba Actions
+  workflow_dispatch: {}
 
 permissions:
   contents: write
