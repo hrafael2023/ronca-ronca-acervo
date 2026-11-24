@@ -269,7 +269,7 @@
   function estatisticas() {
     if (D.est) return D.est;
     const artistasTop = [...D.artistas.values()].sort((a, b) => b.total - a.total);
-    const porDecada = new Map(), porAnoLanc = new Map(), porAnoRonca = new Map(), idade = new Map(), mapa = new Map();
+    const porDecada = new Map(), porAnoLanc = new Map(), porAnoRonca = new Map(), idade = new Map();
     for (const f of D.faixas) {
       if (f.ano) porAnoRonca.set(f.ano, (porAnoRonca.get(f.ano) || 0) + 1);
       if (f.al && f.al >= 1900 && f.al <= ANO_ATUAL) {
@@ -280,8 +280,6 @@
           const i = idade.get(f.ano) || { s: 0, n: 0, novas: 0 };
           i.s += f.ano - f.al; i.n++; if (f.ano - f.al <= 1) i.novas++;
           idade.set(f.ano, i);
-          const kk = f.ano + "|" + d;
-          mapa.set(kk, (mapa.get(kk) || 0) + 1);
         }
       }
     }
@@ -289,7 +287,7 @@
     let somaIdade = 0, nIdade = 0;
     for (const i of idade.values()) { somaIdade += i.s; nIdade += i.n; }
     const anosRonca = [...porAnoRonca.keys()].sort();
-    D.est = { artistasTop, porDecada, porAnoLanc, porAnoRonca, idade, mapa, musicasTop, idadeMedia: somaIdade / nIdade, anosRonca };
+    D.est = { artistasTop, porDecada, porAnoLanc, porAnoRonca, idade, musicasTop, idadeMedia: somaIdade / nIdade, anosRonca };
     return D.est;
   }
 
@@ -362,26 +360,6 @@
     const pts = dados.map((d, i) => `<g class="alvo" data-dica="${esc(d.dica)}"><rect x="${X(i) - meio}" y="${topo}" width="${meio * 2}" height="${base - topo}" fill="transparent"/><circle class="ponto" cx="${X(i)}" cy="${Y(d.v)}" r="4.5"/>
       <text x="${X(i)}" y="${altura - 6}" text-anchor="middle">${dados.length > 10 && W < 520 && i % 2 ? "" : esc(String(d.x).slice(-2) === String(d.x) ? d.x : "’" + String(d.x).slice(2))}</text></g>`).join("");
     el.innerHTML = `<svg viewBox="0 0 ${W} ${altura}" width="${W}" height="${altura}" role="img">${grade}<path class="linha" d="${caminho}"/>${pts}</svg>`;
-  }
-
-  function mapaCalor(el, est) {
-    const W = largura(el);
-    const anos = est.anosRonca.filter((a) => est.idade.get(a));
-    const decs = [...est.porDecada.keys()].filter((d) => d >= 1940).sort();
-    const esq = 44, topo = 4, cw = (W - esq) / anos.length, ch = 20, H = topo + decs.length * ch + 22;
-    let max = 0;
-    const pct = (a, d) => { const t = est.idade.get(a).n; return (est.mapa.get(a + "|" + d) || 0) / t; };
-    for (const a of anos) for (const d of decs) max = Math.max(max, pct(a, d));
-    const cel = [];
-    decs.forEach((d, j) => {
-      cel.push(`<text x="${esq - 6}" y="${topo + j * ch + ch / 2 + 4}" text-anchor="end">${d < 2000 ? "’" + String(d).slice(2) : d}</text>`);
-      anos.forEach((a, i) => {
-        const p = pct(a, d);
-        cel.push(`<g class="alvo" data-dica="<b>${a}</b> · músicas dos anos ${String(d).slice(2)}<br>${fmt1(p * 100)}% das faixas tocadas"><rect class="celula" x="${esq + i * cw + 1}" y="${topo + j * ch + 1}" width="${cw - 2}" height="${ch - 2}" rx="2" fill="var(--dado)" fill-opacity="${p === 0 ? 0.04 : 0.1 + 0.9 * (p / max)}"/></g>`);
-      });
-    });
-    anos.forEach((a, i) => cel.push(`<text x="${esq + i * cw + cw / 2}" y="${H - 6}" text-anchor="middle">${W < 520 ? "’" + String(a).slice(2) : a}</text>`));
-    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img">${cel.join("")}</svg>`;
   }
 
   // dica flutuante para qualquer [data-dica]
@@ -570,7 +548,6 @@
           ${tabela(["Década", "Faixas"], [...est.porDecada.entries()].sort((a, b) => a[0] - b[0]).map(([d, v]) => [d + "s", fmt(v)]))}</div>
         <div class="cartao grafico"><h3>Idade média da música tocada</h3><div class="leg">anos entre o lançamento e a execução, por ano do programa</div><div id="d-idade"></div>
           ${tabela(["Ano", "Idade média", "% lançamentos"], idadeDados.map((d) => [d.x, fmt1(d.v), fmt1(d.n * 100) + "%"]))}</div>
-        <div class="cartao grafico largo"><h3>Que décadas o Ronca tocou em cada ano</h3><div class="leg">% das faixas de cada ano do programa (coluna) vindas de cada década de lançamento (linha) · mais escuro = mais tocado</div><div id="d-mapa"></div></div>
         <div class="cartao grafico"><h3>Faixas por ano do programa</h3><div class="leg">total tocado em cada ano</div><div id="d-ano"></div></div>
         <div class="cartao grafico"><h3>O mais tocado de cada ano</h3><div class="leg">artista com mais execuções em cada ano do programa</div><div id="d-campeoes"></div></div>
       </div>`;
@@ -579,7 +556,6 @@
     registrar(() => { const el = $("#d-lanc"); const W = largura(el); colunas(el, anosLanc.map((a) => ({ x: a, v: est.porAnoLanc.get(a) || 0, href: `#/busca?c=ano&q=${a}`, dica: `<b>${a}</b><br>${qtd(est.porAnoLanc.get(a) || 0, "faixa")}` })), { altura: 200, rotuloCada: W < 500 ? 20 : 10 }); });
     registrar(() => graficoDecadas($("#d-dec"), est));
     registrar(() => linha($("#d-idade"), idadeDados));
-    registrar(() => mapaCalor($("#d-mapa"), est));
     registrar(() => colunas($("#d-ano"), est.anosRonca.map((a) => ({ x: a, v: est.porAnoRonca.get(a), dica: `<b>${a}</b><br>${qtd(est.porAnoRonca.get(a), "faixa")}` })), { altura: 160, formatoX: (x) => "’" + String(x).slice(2), rotuloCada: largura($("#d-ano")) < 420 ? 2 : 1 }));
     // campeões por ano
     const camp = est.anosRonca.map((ano) => {

@@ -209,7 +209,7 @@ h3 { font-size: 16px; font-weight: 700; color: var(--texto); }
 .grafico .grade { stroke: var(--grade); stroke-width: 1; }
 .grafico .barra { fill: var(--dado); }
 .grafico .barra.fraca { fill: var(--dado-2); }
-.grafico .alvo:hover .barra, .grafico .alvo:hover rect.celula { opacity: .75; }
+.grafico .alvo:hover .barra { opacity: .75; }
 .grafico .linha { fill: none; stroke: var(--destaque); stroke-width: 2; }
 .grafico .ponto { fill: var(--destaque); stroke: var(--cartao); stroke-width: 2; }
 .grafico a .rot:hover { fill: var(--destaque); }
