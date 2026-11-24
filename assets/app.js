@@ -210,6 +210,8 @@
       <div class="progs">${progs}${resto}</div></div>`;
   }
 
+  const opt = (v, t, sel) => `<option value="${v}"${String(sel) === String(v) ? " selected" : ""}>${t}</option>`;
+
   let estadoBusca = { pagina: 1 };
   function telaBusca(params) {
     const q = params.get("q") || "";
@@ -236,7 +238,6 @@
     else if (c.tipo === "ano") titulo = c.de === c.ate ? `Lançadas em <b>${c.de}</b>` : `Lançadas entre <b>${c.de}–${c.ate}</b>`;
     else titulo = `Resultados para <b>“${esc(q)}”</b>`;
 
-    const opt = (v, t, sel) => `<option value="${v}"${String(sel) === String(v) ? " selected" : ""}>${t}</option>`;
     estadoBusca = { lista, termos, pagina: 1 };
     app.innerHTML = `<section class="secao">
       <div class="secao-topo"><h2>${titulo}</h2>${c.tipo === "programa" && c.de === c.ate && D.porNumero.has(c.de) ? `<a class="mais" href="#/programa/${c.de}">ver página do programa →</a>` : ""}</div>
@@ -487,8 +488,17 @@
       Estreou no <a href="#/programa/${ar.primeiro}">#${ar.primeiro}</a> · última vez no <a href="#/programa/${ar.ultimo}">#${ar.ultimo}</a></div></div>
       <div class="nav"><a href="#/artistas?l=${encodeURIComponent(letra)}" title="Voltar à lista de artistas com ${letra}">← Artistas · ${letra}</a></div></div>
       <div class="graficos" style="margin-bottom:24px"><div class="cartao grafico largo"><h3>Execuções por ano do programa</h3><div class="leg">quantas faixas de ${esc(ar.nome)} tocaram em cada ano</div><div id="g-art"></div></div></div>
-      <h2 style="margin-bottom:12px">Músicas tocadas</h2>
-      <div class="lista">${musicas.map((m) => itemHTML(m)).join("")}</div>`;
+      <div class="secao-topo"><h2>Músicas tocadas</h2></div>
+      <div class="filtros">
+        <span class="total">${qtd(musicas.length, "música")}</span>
+        <select id="f-ord" aria-label="Ordenar">${opt("", "Tocadas recentemente", "")}${opt("tocadas", "Mais tocadas", "")}${opt("novas", "Lançamento: mais novas", "")}${opt("antigas", "Lançamento: mais antigas", "")}${opt("artista", "Música A–Z", "")}</select>
+      </div>
+      <div class="lista" id="lista"></div>`;
+    // mesma ordenação da busca; aqui só reordena a lista, sem recarregar a página
+    const linhas = musicas.map((mu) => ({ mu, s: 0 }));
+    const listar = () => { $("#lista").innerHTML = ordenar(linhas, $("#f-ord").value || "recentes").map((r) => itemHTML(r.mu)).join(""); };
+    $("#f-ord").onchange = listar;
+    listar();
     registrar(() => colunas($("#g-art"), est.anosRonca.map((a) => ({ x: a, v: porAno.get(a) || 0, dica: `<b>${a}</b><br>${qtd(porAno.get(a) || 0, "execução", "execuções")}` })), { altura: 150, formatoX: (x) => "’" + String(x).slice(2) }));
   }
 
