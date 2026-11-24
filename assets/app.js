@@ -1023,6 +1023,26 @@
   // Só a impressão digital (SHA-256) de "usuário:senha" fica no código, nunca a senha.
   const ACESSO = "f783f921ecda562c78ed26db4353c58818d32d4c27dbac57c82895d08649957d";
   const ADMIN = "41ec4ae270e40595a8848dea34c3c5b6638d84c7d7c03803c340db013d8fffae"; // pode trocar capas
+  // ---------- claro / escuro (botão no rodapé) ----------
+  // Sem escolha salva, segue o sistema. O ícone mostra o modo atual (sol = claro, lua = escuro).
+  const sistemaEscuro = matchMedia("(prefers-color-scheme: dark)");
+  const temaAtual = () => document.documentElement.dataset.tema || (sistemaEscuro.matches ? "escuro" : "claro");
+  function pintarBotaoTema() {
+    const escuro = temaAtual() === "escuro";
+    const b = $("#tema");
+    b.classList.toggle("escuro", escuro);
+    b.title = escuro ? "Mudar para o modo claro" : "Mudar para o modo escuro";
+    b.setAttribute("aria-label", b.title);
+  }
+  $("#tema").addEventListener("click", () => {
+    const novo = temaAtual() === "escuro" ? "claro" : "escuro";
+    document.documentElement.dataset.tema = novo;
+    try { localStorage.setItem("ronca-tema", novo); } catch { /* sem armazenamento: vale só nesta visita */ }
+    pintarBotaoTema();
+  });
+  sistemaEscuro.addEventListener("change", pintarBotaoTema);
+  pintarBotaoTema();
+
   const CHAVE_ACESSO = "ronca-acesso";
   const guardado = (onde) => { try { return onde.getItem(CHAVE_ACESSO); } catch { return null; } };
   const guardar = (onde, v) => { try { onde.setItem(CHAVE_ACESSO, v); } catch { /* navegador sem armazenamento */ } };
