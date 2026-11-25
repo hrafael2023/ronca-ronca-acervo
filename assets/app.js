@@ -481,9 +481,8 @@
     const musicas = [...ar.musicas].map((k) => D.musicas.get(k)).sort((a, b) => b.progs.length - a.progs.length || b.progs[0] - a.progs[0]);
     const porAno = new Map();
     for (const p of ar.progs) { const a = D.porNumero.get(p).ano; porAno.set(a, (porAno.get(a) || 0) + D.porNumero.get(p).faixas.filter((f) => f.chaveA === chave).length); }
-    const capa = musicas.find((m) => m.capa);
     const letra = letraDoArtista(ar.nome);
-    app.innerHTML = `<div class="cabeca">${capa ? `<div style="width:120px">${capaHTML(capa)}</div>` : ""}<div><h2><b>${esc(ar.nome)}</b></h2>
+    app.innerHTML = `<div class="cabeca"><div><h2><b>${esc(ar.nome)}</b></h2>
       <div class="meta" style="margin-top:6px">${qtd(ar.total, "execução", "execuções")} · ${qtd(ar.musicas.size, "música")} · ${qtd(ar.progs.size, "programa")} · ${rank}º mais tocado<br>
       Estreou no <a href="#/programa/${ar.primeiro}">#${ar.primeiro}</a> · última vez no <a href="#/programa/${ar.ultimo}">#${ar.ultimo}</a></div></div>
       <div class="nav"><a href="#/artistas?l=${encodeURIComponent(letra)}" title="Voltar à lista de artistas com ${letra}">← Artistas · ${letra}</a></div></div>
